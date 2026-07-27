@@ -441,7 +441,7 @@ function App({ session }) {
 
   async function chiamaGestisciUtenti(azione, extra) {
     const { data: { session: s } } = await supabase.auth.getSession();
-    const response = await fetch(SUPABASE_URL + '/functions/v1/gestisci-utenti', {
+    const response = await fetch(SUPABASE_URL + '/functions/v1/rapid-function', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
