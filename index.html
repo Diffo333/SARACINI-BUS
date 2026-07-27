@@ -428,6 +428,81 @@ function App({ session }) {
   const [mostraDettaglio, setMostraDettaglio] = useState(false);
   const [kmStatus, setKmStatus] = useState({});
 
+  // ---- GESTIONE UTENTI (solo amministratori) ----
+  const [sonoAdmin, setSonoAdmin] = useState(false);
+  const [elencoUtenti, setElencoUtenti] = useState([]);
+  const [nuovoUsername, setNuovoUsername] = useState('');
+  const [nuovoEmail, setNuovoEmail] = useState('');
+  const [nuovoPassword, setNuovoPassword] = useState('');
+  const [nuovoNome, setNuovoNome] = useState('');
+  const [nuovoAdmin, setNuovoAdmin] = useState(false);
+  const [utentiMsg, setUtentiMsg] = useState('');
+  const [utentiCaricando, setUtentiCaricando] = useState(false);
+
+  async function chiamaGestisciUtenti(azione, extra) {
+    const { data: { session: s } } = await supabase.auth.getSession();
+    const response = await fetch(SUPABASE_URL + '/functions/v1/gestisci-utenti', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + (s ? s.access_token : ''),
+        'apikey': SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({ azione, ...extra }),
+    });
+    const dati = await response.json();
+    if (!response.ok) throw new Error(dati.error || 'Errore');
+    return dati;
+  }
+
+  async function ricaricaUtenti() {
+    try {
+      const d = await chiamaGestisciUtenti('elenco');
+      setSonoAdmin(true);
+      setElencoUtenti(d.utenti || []);
+    } catch (e) {
+      setSonoAdmin(false);
+    }
+  }
+
+  useEffect(() => { ricaricaUtenti(); }, []);
+
+  async function creaUtente(e) {
+    e.preventDefault();
+    setUtentiMsg('');
+    if (!nuovoUsername.trim() || !nuovoEmail.trim() || !nuovoPassword) {
+      setUtentiMsg('Compila nome utente, email e password.');
+      return;
+    }
+    setUtentiCaricando(true);
+    try {
+      await chiamaGestisciUtenti('crea', {
+        username: nuovoUsername.trim(),
+        email: nuovoEmail.trim(),
+        password: nuovoPassword,
+        nomeVisualizzato: nuovoNome.trim(),
+        amministratore: nuovoAdmin,
+      });
+      setNuovoUsername(''); setNuovoEmail(''); setNuovoPassword(''); setNuovoNome(''); setNuovoAdmin(false);
+      setUtentiMsg('Accesso creato.');
+      await ricaricaUtenti();
+    } catch (err) {
+      setUtentiMsg(err.message || 'Errore nella creazione.');
+    }
+    setUtentiCaricando(false);
+    setTimeout(() => setUtentiMsg(''), 4000);
+  }
+
+  async function eliminaUtente(username) {
+    if (!confirm("Eliminare l'accesso di \"" + username + "\"? Non potrà più entrare nell'app.")) return;
+    try {
+      await chiamaGestisciUtenti('elimina', { username });
+      await ricaricaUtenti();
+    } catch (err) {
+      alert(err.message || "Errore nell'eliminazione.");
+    }
+  }
+
   async function caricaArchivioCloud() {
     const dati = await cloud.caricaTutto();
     setClientiNoti(dati.clienti);
@@ -985,7 +1060,7 @@ function App({ session }) {
           <div>
             <p className="text-xs font-semibold tracking-widest text-red-700 uppercase">Saracini Bus Srl</p>
             <h1 className="text-3xl font-serif text-slate-900 mt-1">
-              {vista === 'storico' ? 'Preventivi inviati' : (idCorrente ? 'Modifica preventivo' : 'Calcolo preventivo')}
+              {vista === 'storico' ? 'Preventivi inviati' : vista === 'utenti' ? 'Accessi ufficio' : (idCorrente ? 'Modifica preventivo' : 'Calcolo preventivo')}
             </h1>
           </div>
           <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1">
@@ -1000,6 +1075,12 @@ function App({ session }) {
                 <span className={'text-xs px-1.5 rounded-full ' + (vista === 'storico' ? 'bg-white/20' : 'bg-slate-100')}>{storico.length}</span>
               )}
             </button>
+            {sonoAdmin && (
+              <button onClick={() => setVista('utenti')}
+                className={'px-3 py-1.5 rounded-lg text-sm ' + (vista === 'utenti' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900')}>
+                Utenti
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-slate-400 hidden sm:inline">{session.user.email}</span>
@@ -1178,6 +1259,70 @@ function App({ session }) {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {vista === 'utenti' && sonoAdmin && (
+          <div className="space-y-4 max-w-2xl">
+            <div className="bg-white border border-slate-200 rounded-xl p-5">
+              <p className="text-sm font-medium text-slate-700 mb-3">Aggiungi un accesso</p>
+              <form onSubmit={creaUtente} className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">Nome utente</label>
+                    <input value={nuovoUsername} onChange={e => setNuovoUsername(e.target.value)}
+                      placeholder="es. yuri" className="w-full border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">Nome da mostrare (facoltativo)</label>
+                    <input value={nuovoNome} onChange={e => setNuovoNome(e.target.value)}
+                      placeholder="es. Yuri" className="w-full border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500 mb-1 block">Email</label>
+                  <input type="email" value={nuovoEmail} onChange={e => setNuovoEmail(e.target.value)}
+                    placeholder="email@esempio.it" className="w-full border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500 mb-1 block">Password iniziale</label>
+                  <input type="text" value={nuovoPassword} onChange={e => setNuovoPassword(e.target.value)}
+                    placeholder="da comunicare alla persona" className="w-full border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
+                </div>
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input type="checkbox" checked={nuovoAdmin} onChange={e => setNuovoAdmin(e.target.checked)} />
+                  Rendi anche lui/lei amministratore (potrà gestire gli accessi come te)
+                </label>
+                {utentiMsg && <p className="text-xs text-slate-600">{utentiMsg}</p>}
+                <button type="submit" disabled={utentiCaricando}
+                  className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm hover:bg-slate-800 disabled:opacity-50">
+                  {utentiCaricando ? 'Creazione...' : 'Crea accesso'}
+                </button>
+              </form>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-xl p-5">
+              <p className="text-sm font-medium text-slate-700 mb-3">Accessi esistenti</p>
+              <div className="space-y-2">
+                {elencoUtenti.map(u => (
+                  <div key={u.username} className="flex items-center justify-between gap-3 border border-slate-100 rounded-lg px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="text-sm text-slate-900 truncate">
+                        {u.nome_visualizzato || u.username} <span className="text-slate-400">({u.username})</span>
+                      </p>
+                      <p className="text-xs text-slate-400 truncate">
+                        {u.email}{u.amministratore ? ' · amministratore' : ''}
+                      </p>
+                    </div>
+                    <button onClick={() => eliminaUtente(u.username)}
+                      className="shrink-0 px-2.5 py-1 rounded-lg border border-red-200 text-xs text-red-600 hover:border-red-400">
+                      Elimina
+                    </button>
+                  </div>
+                ))}
+                {elencoUtenti.length === 0 && <p className="text-sm text-slate-400">Nessun accesso trovato.</p>}
+              </div>
+            </div>
           </div>
         )}
 
