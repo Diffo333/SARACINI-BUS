@@ -1307,6 +1307,13 @@ function App({ session }) {
                     className="w-full border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
                 </div>
 
+                {(riga.tipo === 'fcoArrivo' || riga.tipo === 'fcoPartenza' || riga.tipo === 'civitavecchia') && (
+                  <label className="flex items-center gap-2 text-sm text-slate-700">
+                    <input type="checkbox" checked={riga.bagagli} onChange={e => aggiornaRiga(riga.id, { bagagli: e.target.checked })} />
+                    Con bagagli
+                  </label>
+                )}
+
                 {riga.tipo === 'romaFissa' && (
                   <div>
                     <label className="text-xs text-slate-500 mb-1 block">Ore di disposizione</label>
