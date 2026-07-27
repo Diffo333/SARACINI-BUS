@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Preventivi - Saracini Bus</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#0f172a">
+<meta name="theme-color" content="#C4161C">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -340,7 +340,7 @@ function Login() {
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
       <form onSubmit={entra} className="bg-white border border-slate-200 rounded-xl p-6 w-full max-w-sm space-y-4">
         <div>
-          <p className="text-xs font-semibold tracking-widest text-amber-700 uppercase">Saracini Bus Srl</p>
+          <p className="text-xs font-semibold tracking-widest text-red-700 uppercase">Saracini Bus Srl</p>
           <h1 className="text-2xl font-serif text-slate-900 mt-1">Accedi</h1>
         </div>
         <div>
@@ -955,7 +955,7 @@ function App({ session }) {
       <div className="max-w-6xl mx-auto">
         <header className="mb-6 flex items-end justify-between gap-4 flex-wrap">
           <div>
-            <p className="text-xs font-semibold tracking-widest text-amber-700 uppercase">Saracini Bus Srl</p>
+            <p className="text-xs font-semibold tracking-widest text-red-700 uppercase">Saracini Bus Srl</p>
             <h1 className="text-3xl font-serif text-slate-900 mt-1">
               {vista === 'storico' ? 'Preventivi inviati' : (idCorrente ? 'Modifica preventivo' : 'Calcolo preventivo')}
             </h1>
@@ -1630,7 +1630,7 @@ function App({ session }) {
 
                 <div className="pt-3 border-t border-slate-700 flex items-end justify-between">
                   <span className="text-sm text-slate-400">Totale{maxBus > 1 ? ' per bus' : ''}</span>
-                  <span className="text-2xl font-serif text-amber-400">&euro; {fmt(totale)}</span>
+                  <span className="text-2xl font-serif text-red-400">&euro; {fmt(totale)}</span>
                 </div>
                 {maxBus > 1 && <p className="text-xs text-amber-400 mt-2 text-right">Servono {maxBus} pullman - moltiplicare x{maxBus}</p>}
                 <p className="text-xs text-slate-500 mt-1 text-right">+ IVA 10% e voci non incluse</p>
@@ -1668,7 +1668,7 @@ function App({ session }) {
               </div>
 
               <button onClick={salvaPreventivo}
-                className="w-full py-3 rounded-xl bg-amber-500 text-white text-sm font-medium hover:bg-amber-600">
+                className="w-full py-3 rounded-xl bg-red-600 text-white text-sm font-medium hover:bg-red-700">
                 {idCorrente ? 'Aggiorna preventivo' : 'Segna come inviato'}
               </button>
 
