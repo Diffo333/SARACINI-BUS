@@ -457,7 +457,7 @@ function App({ session }) {
     setAiNote('');
     try {
       const { data: { session: s } } = await supabase.auth.getSession();
-      const response = await fetch(SUPABASE_URL + '/functions/v1/interpreta-email', {
+      const response = await fetch(SUPABASE_URL + '/functions/v1/clever-task', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
