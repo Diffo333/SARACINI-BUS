@@ -423,7 +423,7 @@ function GraficoAndamento({ punti }) {
 
   return (
     <div className="relative">
-      <svg viewBox={'0 0 ' + larghezza + ' ' + altezza} className="w-full" style={{ height: altezza }}
+      <svg viewBox={'0 0 ' + larghezza + ' ' + altezza} preserveAspectRatio="none" className="w-full" style={{ height: altezza }}
         onMouseMove={muovi} onMouseLeave={() => setHoverX(null)}>
         {passiY.map((v, i) => (
           <g key={i}>
