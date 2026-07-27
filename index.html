@@ -336,12 +336,21 @@ function calcolaIntervallo(preset, inizioCustom, fineCustom) {
   return { inizio, fine: oggi };
 }
 
+// Chiave del giorno secondo l'ora locale (non UTC: altrimenti in estate, con l'Italia
+// avanti di 2 ore, la mezzanotte locale finisce registrata come il giorno prima).
+function chiaveGiornoLocale(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const giorno = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + giorno;
+}
+
 function aggregaPerGiorno(storico, inizio, fine) {
   const somme = {};
   storico.forEach(p => {
     const d = new Date(p.dataCreazione);
     if (isNaN(d) || d < inizio || d > fine) return;
-    const chiave = d.toISOString().slice(0, 10);
+    const chiave = chiaveGiornoLocale(d);
     somme[chiave] = (somme[chiave] || 0) + (Number(p.totale) || 0);
   });
   const giorni = [];
@@ -350,7 +359,7 @@ function aggregaPerGiorno(storico, inizio, fine) {
   const ultimo = new Date(fine);
   ultimo.setHours(0, 0, 0, 0);
   while (cursore <= ultimo) {
-    const chiave = cursore.toISOString().slice(0, 10);
+    const chiave = chiaveGiornoLocale(cursore);
     giorni.push({ data: chiave, valore: somme[chiave] || 0 });
     cursore.setDate(cursore.getDate() + 1);
   }
