@@ -379,7 +379,7 @@ function arrotondaScala(max) {
 }
 
 function GraficoAndamento({ punti }) {
-  const [hover, setHover] = useState(null);
+  const [hoverX, setHoverX] = useState(null);
   const larghezza = 800, altezza = 260;
   const margine = { sopra: 16, sotto: 28, sinistra: 4, destra: 4 };
   const areaW = larghezza - margine.sinistra - margine.destra;
@@ -399,6 +399,12 @@ function GraficoAndamento({ punti }) {
   const passiY = [0, 0.25, 0.5, 0.75, 1].map(f => scalaMax * f);
   const passoLabel = Math.max(1, Math.ceil(punti.length / 6));
 
+  // Il punto agganciato (per pallino e tooltip) e' il giorno piu' vicino alla posizione del mouse;
+  // la lineetta verticale invece segue il mouse in modo continuo, senza scattare a passi.
+  const hoverIndex = hoverX === null || punti.length === 0
+    ? null
+    : Math.max(0, Math.min(punti.length - 1, Math.round(((hoverX - margine.sinistra) / areaW) * (punti.length - 1))));
+
   function formattaData(iso) {
     const d = new Date(iso + 'T00:00:00');
     return d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' });
@@ -408,9 +414,7 @@ function GraficoAndamento({ punti }) {
     const rect = e.currentTarget.getBoundingClientRect();
     if (!rect.width || punti.length === 0) return;
     const px = ((e.clientX - rect.left) / rect.width) * larghezza;
-    let i = Math.round(((px - margine.sinistra) / areaW) * (punti.length - 1));
-    i = Math.max(0, Math.min(punti.length - 1, i));
-    setHover(i);
+    setHoverX(Math.max(margine.sinistra, Math.min(larghezza - margine.destra, px)));
   }
 
   if (!punti.length) {
@@ -420,7 +424,7 @@ function GraficoAndamento({ punti }) {
   return (
     <div className="relative">
       <svg viewBox={'0 0 ' + larghezza + ' ' + altezza} className="w-full" style={{ height: altezza }}
-        onMouseMove={muovi} onMouseLeave={() => setHover(null)}>
+        onMouseMove={muovi} onMouseLeave={() => setHoverX(null)}>
         {passiY.map((v, i) => (
           <g key={i}>
             <line x1={margine.sinistra} x2={larghezza - margine.destra} y1={y(v)} y2={y(v)} stroke="#e1e0d9" strokeWidth="1" />
@@ -435,18 +439,18 @@ function GraficoAndamento({ punti }) {
           )
         ))}
         <circle cx={x(punti.length - 1)} cy={y(punti[punti.length - 1].valore)} r="4" fill="#C4161C" stroke="#fff" strokeWidth="2" />
-        {hover !== null && punti[hover] && (
+        {hoverIndex !== null && punti[hoverIndex] && (
           <g>
-            <line x1={x(hover)} x2={x(hover)} y1={margine.sopra} y2={margine.sopra + areaH} stroke="#c3c2b7" strokeWidth="1" />
-            <circle cx={x(hover)} cy={y(punti[hover].valore)} r="4" fill="#C4161C" stroke="#fff" strokeWidth="2" />
+            <line x1={hoverX} x2={hoverX} y1={margine.sopra} y2={margine.sopra + areaH} stroke="#c3c2b7" strokeWidth="1" />
+            <circle cx={x(hoverIndex)} cy={y(punti[hoverIndex].valore)} r="4" fill="#C4161C" stroke="#fff" strokeWidth="2" />
           </g>
         )}
       </svg>
-      {hover !== null && punti[hover] && (
+      {hoverIndex !== null && punti[hoverIndex] && (
         <div className="absolute bg-slate-900 text-white text-xs rounded-lg px-2.5 py-1.5 pointer-events-none shadow-lg z-10"
-          style={{ left: (x(hover) / larghezza) * 100 + '%', top: 0, transform: 'translate(-50%, -110%)' }}>
-          <div className="text-slate-300">{formattaData(punti[hover].data)}</div>
-          <div className="font-medium">&euro; {fmt(punti[hover].valore)}</div>
+          style={{ left: (hoverX / larghezza) * 100 + '%', top: 0, transform: 'translate(-50%, -110%)' }}>
+          <div className="text-slate-300">{formattaData(punti[hoverIndex].data)}</div>
+          <div className="font-medium">&euro; {fmt(punti[hoverIndex].valore)}</div>
         </div>
       )}
     </div>
