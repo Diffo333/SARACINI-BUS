@@ -320,6 +320,130 @@ function trovaVoceZTL(citta, giorni) {
   return candidate.length === 1 ? candidate[0] : candidate;
 }
 
+// ---- ANALITICHE: andamento del valore preventivato nel tempo ----
+function calcolaIntervallo(preset, inizioCustom, fineCustom) {
+  const oggi = new Date();
+  oggi.setHours(23, 59, 59, 999);
+  if (preset === 'custom') {
+    const inizio = inizioCustom ? new Date(inizioCustom + 'T00:00:00') : new Date(oggi);
+    const fine = fineCustom ? new Date(fineCustom + 'T23:59:59') : oggi;
+    return { inizio, fine };
+  }
+  const giorni = Number(preset);
+  const inizio = new Date(oggi);
+  inizio.setDate(inizio.getDate() - (giorni - 1));
+  inizio.setHours(0, 0, 0, 0);
+  return { inizio, fine: oggi };
+}
+
+function aggregaPerGiorno(storico, inizio, fine) {
+  const somme = {};
+  storico.forEach(p => {
+    const d = new Date(p.dataCreazione);
+    if (isNaN(d) || d < inizio || d > fine) return;
+    const chiave = d.toISOString().slice(0, 10);
+    somme[chiave] = (somme[chiave] || 0) + (Number(p.totale) || 0);
+  });
+  const giorni = [];
+  const cursore = new Date(inizio);
+  cursore.setHours(0, 0, 0, 0);
+  const ultimo = new Date(fine);
+  ultimo.setHours(0, 0, 0, 0);
+  while (cursore <= ultimo) {
+    const chiave = cursore.toISOString().slice(0, 10);
+    giorni.push({ data: chiave, valore: somme[chiave] || 0 });
+    cursore.setDate(cursore.getDate() + 1);
+  }
+  return giorni;
+}
+
+function arrotondaScala(max) {
+  if (max <= 0) return 100;
+  const potenza = Math.pow(10, Math.floor(Math.log10(max)));
+  const normalizzato = max / potenza;
+  let passo;
+  if (normalizzato <= 1) passo = 1;
+  else if (normalizzato <= 2) passo = 2;
+  else if (normalizzato <= 5) passo = 5;
+  else passo = 10;
+  return passo * potenza;
+}
+
+function GraficoAndamento({ punti }) {
+  const [hover, setHover] = useState(null);
+  const larghezza = 800, altezza = 260;
+  const margine = { sopra: 16, sotto: 28, sinistra: 4, destra: 4 };
+  const areaW = larghezza - margine.sinistra - margine.destra;
+  const areaH = altezza - margine.sopra - margine.sotto;
+
+  const massimo = Math.max(0, ...punti.map(p => p.valore));
+  const scalaMax = arrotondaScala(massimo || 100);
+
+  const x = i => margine.sinistra + (punti.length > 1 ? (i / (punti.length - 1)) * areaW : areaW / 2);
+  const y = v => margine.sopra + areaH - (v / scalaMax) * areaH;
+
+  const linea = punti.map((p, i) => (i === 0 ? 'M' : 'L') + x(i) + ',' + y(p.valore)).join(' ');
+  const area = punti.length
+    ? linea + ' L' + x(punti.length - 1) + ',' + (margine.sopra + areaH) + ' L' + x(0) + ',' + (margine.sopra + areaH) + ' Z'
+    : '';
+
+  const passiY = [0, 0.25, 0.5, 0.75, 1].map(f => scalaMax * f);
+  const passoLabel = Math.max(1, Math.ceil(punti.length / 6));
+
+  function formattaData(iso) {
+    const d = new Date(iso + 'T00:00:00');
+    return d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' });
+  }
+
+  function muovi(e) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (!rect.width || punti.length === 0) return;
+    const px = ((e.clientX - rect.left) / rect.width) * larghezza;
+    let i = Math.round(((px - margine.sinistra) / areaW) * (punti.length - 1));
+    i = Math.max(0, Math.min(punti.length - 1, i));
+    setHover(i);
+  }
+
+  if (!punti.length) {
+    return <p className="text-sm text-slate-400">Nessun dato nel periodo selezionato.</p>;
+  }
+
+  return (
+    <div className="relative">
+      <svg viewBox={'0 0 ' + larghezza + ' ' + altezza} className="w-full" style={{ height: altezza }}
+        onMouseMove={muovi} onMouseLeave={() => setHover(null)}>
+        {passiY.map((v, i) => (
+          <g key={i}>
+            <line x1={margine.sinistra} x2={larghezza - margine.destra} y1={y(v)} y2={y(v)} stroke="#e1e0d9" strokeWidth="1" />
+            <text x={margine.sinistra} y={y(v) - 4} fontSize="10" fill="#898781">{Math.round(v).toLocaleString('it-IT')}</text>
+          </g>
+        ))}
+        <path d={area} fill="#C4161C" opacity="0.10" />
+        <path d={linea} fill="none" stroke="#C4161C" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+        {punti.map((p, i) => (
+          i % passoLabel === 0 && (
+            <text key={'lx' + i} x={x(i)} y={altezza - 6} fontSize="10" fill="#898781" textAnchor="middle">{formattaData(p.data)}</text>
+          )
+        ))}
+        <circle cx={x(punti.length - 1)} cy={y(punti[punti.length - 1].valore)} r="4" fill="#C4161C" stroke="#fff" strokeWidth="2" />
+        {hover !== null && punti[hover] && (
+          <g>
+            <line x1={x(hover)} x2={x(hover)} y1={margine.sopra} y2={margine.sopra + areaH} stroke="#c3c2b7" strokeWidth="1" />
+            <circle cx={x(hover)} cy={y(punti[hover].valore)} r="4" fill="#C4161C" stroke="#fff" strokeWidth="2" />
+          </g>
+        )}
+      </svg>
+      {hover !== null && punti[hover] && (
+        <div className="absolute bg-slate-900 text-white text-xs rounded-lg px-2.5 py-1.5 pointer-events-none shadow-lg z-10"
+          style={{ left: (x(hover) / larghezza) * 100 + '%', top: 0, transform: 'translate(-50%, -110%)' }}>
+          <div className="text-slate-300">{formattaData(punti[hover].data)}</div>
+          <div className="font-medium">&euro; {fmt(punti[hover].valore)}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -426,6 +550,10 @@ function App({ session }) {
   const [percorsiNoti, setPercorsiNoti] = useState([]);
   const [copiato, setCopiato] = useState(false);
   const [mostraDettaglio, setMostraDettaglio] = useState(false);
+  const [periodoPreset, setPeriodoPreset] = useState('30');
+  const [dataInizioCustom, setDataInizioCustom] = useState('');
+  const [dataFineCustom, setDataFineCustom] = useState('');
+  const [vistaTabellaAnalitiche, setVistaTabellaAnalitiche] = useState(false);
   const [kmStatus, setKmStatus] = useState({});
 
   // ---- GESTIONE UTENTI (solo amministratori) ----
@@ -969,6 +1097,15 @@ function App({ session }) {
     svolto: storico.filter(p => p.stato === 'svolto').length,
   };
 
+  // ---- Analitiche: andamento del valore preventivato ----
+  const { inizio: analInizio, fine: analFine } = calcolaIntervallo(periodoPreset, dataInizioCustom, dataFineCustom);
+  const analPunti = aggregaPerGiorno(storico, analInizio, analFine);
+  const analTotale = analPunti.reduce((s, p) => s + p.valore, 0);
+  const analCount = storico.filter(p => {
+    const d = new Date(p.dataCreazione);
+    return !isNaN(d) && d >= analInizio && d <= analFine;
+  }).length;
+
   function generaTesto() {
     let out = 'Buongiorno,\nringraziandovi per la gentile richiesta, inviamo di seguito nostra quotazione:\n\n';
     out += intestazioneMezzo + '\nDISPONIBILITA DA CONFERMARE IN FASE DI PRENOTAZIONE\n';
@@ -1060,7 +1197,7 @@ function App({ session }) {
           <div>
             <p className="text-xs font-semibold tracking-widest text-red-700 uppercase">Saracini Bus Srl</p>
             <h1 className="text-3xl font-serif text-slate-900 mt-1">
-              {vista === 'storico' ? 'Preventivi inviati' : vista === 'utenti' ? 'Accessi ufficio' : (idCorrente ? 'Modifica preventivo' : 'Calcolo preventivo')}
+              {vista === 'storico' ? 'Preventivi inviati' : vista === 'utenti' ? 'Accessi ufficio' : vista === 'analitiche' ? 'Analitiche' : (idCorrente ? 'Modifica preventivo' : 'Calcolo preventivo')}
             </h1>
           </div>
           <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1">
@@ -1074,6 +1211,10 @@ function App({ session }) {
               {storico.length > 0 && (
                 <span className={'text-xs px-1.5 rounded-full ' + (vista === 'storico' ? 'bg-white/20' : 'bg-slate-100')}>{storico.length}</span>
               )}
+            </button>
+            <button onClick={() => setVista('analitiche')}
+              className={'px-3 py-1.5 rounded-lg text-sm ' + (vista === 'analitiche' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900')}>
+              Analitiche
             </button>
             {sonoAdmin && (
               <button onClick={() => setVista('utenti')}
@@ -1322,6 +1463,59 @@ function App({ session }) {
                 ))}
                 {elencoUtenti.length === 0 && <p className="text-sm text-slate-400">Nessun accesso trovato.</p>}
               </div>
+            </div>
+          </div>
+        )}
+
+        {vista === 'analitiche' && (
+          <div className="space-y-4">
+            <div className="bg-white border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-2">
+              {[
+                { id: '7', label: '7 giorni' },
+                { id: '30', label: '30 giorni' },
+                { id: '90', label: '3 mesi' },
+              ].map(p => (
+                <button key={p.id} onClick={() => setPeriodoPreset(p.id)}
+                  className={'px-3 py-1.5 rounded-lg border text-xs ' +
+                    (periodoPreset === p.id ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 text-slate-600 hover:border-slate-400')}>
+                  {p.label}
+                </button>
+              ))}
+              <div className="flex items-center gap-1.5 border-l border-slate-200 pl-2 ml-1">
+                <input type="date" value={dataInizioCustom}
+                  onChange={e => { setDataInizioCustom(e.target.value); setPeriodoPreset('custom'); }}
+                  className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+                <span className="text-xs text-slate-400">-</span>
+                <input type="date" value={dataFineCustom}
+                  onChange={e => { setDataFineCustom(e.target.value); setPeriodoPreset('custom'); }}
+                  className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+              </div>
+              <button onClick={() => setVistaTabellaAnalitiche(v => !v)}
+                className="ml-auto px-3 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-600 hover:border-slate-400">
+                {vistaTabellaAnalitiche ? 'Vedi grafico' : 'Vedi come tabella'}
+              </button>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-xl p-5">
+              <p className="text-xs uppercase tracking-widest text-slate-400 mb-1">Valore totale preventivato nel periodo</p>
+              <p className="text-3xl font-serif text-slate-900">&euro; {fmt(analTotale)}</p>
+              <p className="text-xs text-slate-400 mt-1">{analCount} preventivi creati in questo periodo</p>
+
+              {!vistaTabellaAnalitiche ? (
+                <div className="mt-5">
+                  <GraficoAndamento punti={analPunti} />
+                </div>
+              ) : (
+                <div className="mt-4 max-h-80 overflow-y-auto space-y-1">
+                  {analPunti.filter(p => p.valore > 0).map(p => (
+                    <div key={p.data} className="flex justify-between text-xs text-slate-600 border-b border-slate-100 py-1">
+                      <span>{new Date(p.data + 'T00:00:00').toLocaleDateString('it-IT')}</span>
+                      <span className="tabular-nums">&euro; {fmt(p.valore)}</span>
+                    </div>
+                  ))}
+                  {analPunti.every(p => p.valore === 0) && <p className="text-sm text-slate-400">Nessun preventivo nel periodo.</p>}
+                </div>
+              )}
             </div>
           </div>
         )}
