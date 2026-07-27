@@ -554,6 +554,7 @@ function App({ session }) {
   const [dataInizioCustom, setDataInizioCustom] = useState('');
   const [dataFineCustom, setDataFineCustom] = useState('');
   const [vistaTabellaAnalitiche, setVistaTabellaAnalitiche] = useState(false);
+  const [filtroStatoAnalitiche, setFiltroStatoAnalitiche] = useState('tutti');
   const [kmStatus, setKmStatus] = useState({});
 
   // ---- GESTIONE UTENTI (solo amministratori) ----
@@ -1099,9 +1100,12 @@ function App({ session }) {
 
   // ---- Analitiche: andamento del valore preventivato ----
   const { inizio: analInizio, fine: analFine } = calcolaIntervallo(periodoPreset, dataInizioCustom, dataFineCustom);
-  const analPunti = aggregaPerGiorno(storico, analInizio, analFine);
+  const storicoPerAnalitiche = filtroStatoAnalitiche === 'tutti'
+    ? storico
+    : storico.filter(p => p.stato === filtroStatoAnalitiche);
+  const analPunti = aggregaPerGiorno(storicoPerAnalitiche, analInizio, analFine);
   const analTotale = analPunti.reduce((s, p) => s + p.valore, 0);
-  const analCount = storico.filter(p => {
+  const analCount = storicoPerAnalitiche.filter(p => {
     const d = new Date(p.dataCreazione);
     return !isNaN(d) && d >= analInizio && d <= analFine;
   }).length;
@@ -1496,8 +1500,27 @@ function App({ session }) {
               </button>
             </div>
 
+            <div className="bg-white border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-2">
+              <span className="text-xs text-slate-500 mr-1">Stato:</span>
+              {[
+                { id: 'tutti', label: 'Tutti', colore: '' },
+                { id: 'inviato', label: 'Inviato', colore: 'bg-amber-400' },
+                { id: 'confermato', label: 'Confermato', colore: 'bg-green-500' },
+                { id: 'svolto', label: 'Svolto', colore: 'bg-slate-800' },
+              ].map(f => (
+                <button key={f.id} onClick={() => setFiltroStatoAnalitiche(f.id)}
+                  className={'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs ' +
+                    (filtroStatoAnalitiche === f.id ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 text-slate-600 hover:border-slate-400')}>
+                  {f.colore && <span className={'w-2 h-2 rounded-full ' + f.colore}></span>}
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
             <div className="bg-white border border-slate-200 rounded-xl p-5">
-              <p className="text-xs uppercase tracking-widest text-slate-400 mb-1">Valore totale preventivato nel periodo</p>
+              <p className="text-xs uppercase tracking-widest text-slate-400 mb-1">
+                Valore totale{filtroStatoAnalitiche !== 'tutti' ? ' (' + filtroStatoAnalitiche + ')' : ' preventivato'} nel periodo
+              </p>
               <p className="text-3xl font-serif text-slate-900">&euro; {fmt(analTotale)}</p>
               <p className="text-xs text-slate-400 mt-1">{analCount} preventivi creati in questo periodo</p>
 
