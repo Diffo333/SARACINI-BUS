@@ -132,6 +132,22 @@ const TIPI_RIGA = [
 
 const ORE_ROMA = { '8-9': 550, '10-11': 580, '12': 620 };
 
+// ---- FLOTTA: testo intestazione mezzo, dal più piccolo che contiene i passeggeri ----
+const FLOTTA = [
+  { max: 20, soloSenzaBagagli: true, testo: '1 MINIBUS 20 POSTI – senza bagagliera, adatto per trasporto di piccoli bagagli a mano o zaini da riporre sotto il sedile' },
+  { max: 36, testo: '1 PULLMAN GRAN TURISMO 36 POSTI - SUPER ACCESSORIATO - WIFI A BORDO' },
+  { max: 54, testo: '1 PULLMAN GRAN TURISMO 54 POSTI - SUPER ACCESSORIATO - WIFI A BORDO' },
+  { max: 56, testo: '1 PULLMAN GRAN TURISMO 56 POSTI - SUPER ACCESSORIATO - WIFI A BORDO' },
+  { max: 63, testo: '1 PULLMAN GRAN TURISMO 63 POSTI - SUPER ACCESSORIATO - WIFI A BORDO' },
+];
+
+function testoMezzoPer(pax, bagagli) {
+  const n = Number(pax) || 0;
+  if (!bagagli && n <= 20) return FLOTTA[0].testo;
+  const adatto = FLOTTA.find(f => !f.soloSenzaBagagli && n <= f.max);
+  return (adatto || FLOTTA[FLOTTA.length - 1]).testo;
+}
+
 const PRESET_EXTRA = [
   { label: 'Sottobordo porto Civitavecchia', importo: 120, nota: 'se il bus entra nel porto' },
   { label: 'Tassa terminal Gianicolo', importo: 25, nota: 'carico/scarico zona Vaticano' },
@@ -391,6 +407,7 @@ function App({ session }) {
   const [ztlSuggerite, setZtlSuggerite] = useState([]);
 
   const [intestazioneMezzo, setIntestazioneMezzo] = useState('1 PULLMAN GRAN TURISMO 36 POSTI - SUPER ACCESSORIATO - WIFI A BORDO');
+  const [intestazioneManuale, setIntestazioneManuale] = useState(false);
   const [righe, setRighe] = useState([nuovaRiga('fcoArrivo')]);
   const [nonInclude, setNonInclude] = useState('');
   const [vociExtra, setVociExtra] = useState([]);
@@ -444,6 +461,15 @@ function App({ session }) {
       return r;
     }));
   }, [righe.map(r => r.tipo + '-' + r.pernottoFuori).join('|')]);
+
+  // Intestazione mezzo: si aggiorna da sola in base a passeggeri/bagagli della prima riga,
+  // finché non la modifichi tu a mano (poi resta come l'hai scritta).
+  useEffect(() => {
+    if (intestazioneManuale) return;
+    const prima = righe[0];
+    if (!prima) return;
+    setIntestazioneMezzo(testoMezzoPer(prima.pax, prima.bagagli));
+  }, [righe[0] && righe[0].pax, righe[0] && righe[0].bagagli, intestazioneManuale]);
 
   function salvaChiave() {
     store.set('gmapsKey', gmapsKey.trim());
@@ -564,6 +590,7 @@ function App({ session }) {
   function riapriPreventivo(p) {
     setClienteNome(p.cliente);
     setIntestazioneMezzo(p.intestazioneMezzo || '');
+    setIntestazioneManuale(true);
     setRighe(p.righe && p.righe.length ? p.righe : [nuovaRiga('fcoArrivo')]);
     setVociExtra(p.vociExtra || []);
     setNonInclude(p.nonInclude || '');
@@ -630,6 +657,7 @@ function App({ session }) {
     setVociExtra([]);
     setNonInclude('');
     setIdCorrente(null);
+    setIntestazioneManuale(false);
     setVista('nuovo');
   }
 
@@ -1213,9 +1241,21 @@ function App({ session }) {
 
             {/* INTESTAZIONE */}
             <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <label className="text-sm font-medium text-slate-700 mb-2 block">Intestazione mezzo</label>
-              <input value={intestazioneMezzo} onChange={e => setIntestazioneMezzo(e.target.value)}
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-slate-700">Intestazione mezzo</label>
+                {intestazioneManuale && (
+                  <button onClick={() => setIntestazioneManuale(false)}
+                    className="text-xs text-slate-500 hover:text-slate-900 underline">
+                    Torna automatico (da passeggeri/bagagli)
+                  </button>
+                )}
+              </div>
+              <input value={intestazioneMezzo}
+                onChange={e => { setIntestazioneMezzo(e.target.value); setIntestazioneManuale(true); }}
                 className="w-full border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
+              {!intestazioneManuale && (
+                <p className="text-xs text-slate-400 mt-1.5">Scelto in automatico in base a passeggeri e bagagli della prima riga.</p>
+              )}
             </div>
 
             {/* RIGHE */}
