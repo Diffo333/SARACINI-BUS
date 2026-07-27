@@ -314,7 +314,7 @@ function Login() {
     e.preventDefault();
     setErrore(''); setCaricando(true);
     try {
-      const response = await fetch(SUPABASE_URL + '/functions/v1/login-utente', {
+      const response = await fetch(SUPABASE_URL + '/functions/v1/login-con-utente', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
         body: JSON.stringify({ username: username.trim(), password }),
