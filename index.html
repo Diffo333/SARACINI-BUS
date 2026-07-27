@@ -25,7 +25,7 @@
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect } = React;
 
 // ---- SUPABASE: archivio condiviso con tutto l'ufficio ----
 const SUPABASE_URL = 'https://zeyeaxrtziehkzoqhbaa.supabase.co';
@@ -146,21 +146,6 @@ function testoMezzoPer(pax, bagagli) {
   if (!bagagli && n <= 20) return FLOTTA[0].testo;
   const adatto = FLOTTA.find(f => !f.soloSenzaBagagli && n <= f.max);
   return (adatto || FLOTTA[FLOTTA.length - 1]).testo;
-}
-
-// ---- GOOGLE MAPS: caricamento condiviso dello script (con Places, per gli indirizzi suggeriti) ----
-let mapsPromise = null;
-function caricaGoogleMaps(key) {
-  if (window.google && window.google.maps && window.google.maps.places) return Promise.resolve();
-  if (mapsPromise) return mapsPromise;
-  mapsPromise = new Promise((resolve, reject) => {
-    const sc = document.createElement('script');
-    sc.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(key) + '&libraries=places';
-    sc.onload = resolve;
-    sc.onerror = () => { mapsPromise = null; reject(new Error('Google Maps non raggiungibile')); };
-    document.head.appendChild(sc);
-  });
-  return mapsPromise;
 }
 
 const PRESET_EXTRA = [
@@ -442,24 +427,6 @@ function App({ session }) {
   const [copiato, setCopiato] = useState(false);
   const [mostraDettaglio, setMostraDettaglio] = useState(false);
   const [kmStatus, setKmStatus] = useState({});
-  const [mapsPronte, setMapsPronte] = useState(false);
-  const autocompleteRefs = useRef({});
-
-  // Collega l'autocompletamento indirizzi di Google (Places) a un campo di testo.
-  // Riprova ad ogni render finche' lo script Google non e' pronto (vedi mapsPronte).
-  function attachAutocomplete(el, chiave, onSelect) {
-    if (!el || !window.google || !window.google.maps || !window.google.maps.places) return;
-    if (autocompleteRefs.current[chiave]) return;
-    const ac = new google.maps.places.Autocomplete(el, {
-      componentRestrictions: { country: 'it' },
-      fields: ['formatted_address'],
-    });
-    ac.addListener('place_changed', () => {
-      const place = ac.getPlace();
-      if (place && place.formatted_address) onSelect(place.formatted_address);
-    });
-    autocompleteRefs.current[chiave] = ac;
-  }
 
   async function caricaArchivioCloud() {
     const dati = await cloud.caricaTutto();
@@ -472,10 +439,7 @@ function App({ session }) {
   useEffect(() => {
     setUltimoBackup(store.get('ultimoBackup') || null);
     const k = store.get('gmapsKey');
-    if (k) {
-      setGmapsKey(k); setKeySalvata(true);
-      caricaGoogleMaps(k).then(() => setMapsPronte(true)).catch(() => {});
-    }
+    if (k) { setGmapsKey(k); setKeySalvata(true); }
     caricaArchivioCloud();
   }, []);
 
@@ -510,7 +474,6 @@ function App({ session }) {
   function salvaChiave() {
     store.set('gmapsKey', gmapsKey.trim());
     setKeySalvata(true);
-    caricaGoogleMaps(gmapsKey.trim()).then(() => setMapsPronte(true)).catch(() => {});
     setTimeout(() => setKeySalvata(false), 2000);
   }
 
@@ -819,8 +782,7 @@ function App({ session }) {
 
     const tappe = (riga.tappe || []).map(t => t.luogo.trim()).filter(Boolean);
 
-    caricaGoogleMaps(key).then(() => {
-      setMapsPronte(true);
+    const done = () => {
       const svc = new google.maps.DirectionsService();
       svc.route({
         origin: o,
@@ -837,9 +799,14 @@ function App({ session }) {
           : '';
         setKmStatus(s => ({ ...s, [riga.id]: 'Trovato: ' + km + ' km' + dettaglio }));
       });
-    }).catch(() => {
-      setKmStatus(s => ({ ...s, [riga.id]: 'Google non raggiungibile. Controlla chiave e connessione.' }));
-    });
+    };
+
+    if (window.google && window.google.maps) { done(); return; }
+    const sc = document.createElement('script');
+    sc.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(key);
+    sc.onload = done;
+    sc.onerror = () => setKmStatus(s => ({ ...s, [riga.id]: 'Google non raggiungibile. Controlla chiave e connessione.' }));
+    document.head.appendChild(sc);
   }
 
   async function salvaPercorso(riga) {
@@ -1368,7 +1335,6 @@ function App({ session }) {
                         <label className="text-xs text-slate-500 mb-1 block">Da</label>
                         <input value={riga.partenza} onChange={e => aggiornaRiga(riga.id, { partenza: e.target.value })}
                           onBlur={() => cercaPercorsoNoto(riga)}
-                          ref={el => attachAutocomplete(el, riga.id + ':partenza', addr => aggiornaRiga(riga.id, { partenza: addr }))}
                           placeholder="Via Ostiense 917, Roma"
                           className="w-full border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
                       </div>
@@ -1376,7 +1342,6 @@ function App({ session }) {
                         <label className="text-xs text-slate-500 mb-1 block">A</label>
                         <input value={riga.arrivo} onChange={e => aggiornaRiga(riga.id, { arrivo: e.target.value })}
                           onBlur={() => cercaPercorsoNoto(riga)}
-                          ref={el => attachAutocomplete(el, riga.id + ':arrivo', addr => aggiornaRiga(riga.id, { arrivo: addr }))}
                           placeholder="Assisi"
                           className="w-full border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
                       </div>
@@ -1390,7 +1355,6 @@ function App({ session }) {
                             <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-500 text-xs flex items-center justify-center shrink-0">{ti+1}</span>
                             <input value={t.luogo}
                               onChange={e => aggiornaTappa(riga.id, t.id, e.target.value)}
-                              ref={el => attachAutocomplete(el, t.id, addr => aggiornaTappa(riga.id, t.id, addr))}
                               placeholder="es. Colosseo, Roma"
                               className="flex-1 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm" />
                             <button onClick={() => spostaTappa(riga.id, t.id, -1)} disabled={ti === 0}
