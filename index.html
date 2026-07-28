@@ -1518,7 +1518,7 @@ function App({ session }) {
                     <div>
                       <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-3">Chiavi API</h3>
 
-                      {!sonoAdmin && !chiaviApiSbloccate ? (
+                      {!chiaviApiSbloccate ? (
                         <form onSubmit={verificaPin} className="max-w-xs">
                           <label className="text-sm text-slate-600 dark:text-slate-400 mb-2 block">Sezione protetta: inserisci il PIN per continuare.</label>
                           <div className="flex gap-2">
