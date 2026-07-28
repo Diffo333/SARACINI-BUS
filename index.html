@@ -543,6 +543,7 @@ function App({ session }) {
   const [clienteMessage, setClienteMessage] = useState('');
   const [gmapsKey, setGmapsKey] = useState('');
   const [keySalvata, setKeySalvata] = useState(false);
+  const [impostazioniAperte, setImpostazioniAperte] = useState(false);
   const [emailText, setEmailText] = useState('');
   const [aiStatus, setAiStatus] = useState('idle');
   const [aiNote, setAiNote] = useState('');
@@ -1223,7 +1224,7 @@ function App({ session }) {
           <div>
             <p className="text-xs font-semibold tracking-widest text-red-700 uppercase">Saracini Bus Srl</p>
             <h1 className="text-3xl font-serif text-slate-900 mt-1">
-              {vista === 'storico' ? 'Preventivi inviati' : vista === 'utenti' ? 'Accessi ufficio' : vista === 'analitiche' ? 'Analitiche' : vista === 'impostazioni' ? 'Impostazioni' : (idCorrente ? 'Modifica preventivo' : 'Calcolo preventivo')}
+              {vista === 'storico' ? 'Preventivi inviati' : vista === 'utenti' ? 'Accessi ufficio' : vista === 'analitiche' ? 'Analitiche' : (idCorrente ? 'Modifica preventivo' : 'Calcolo preventivo')}
             </h1>
           </div>
           <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1">
@@ -1248,13 +1249,38 @@ function App({ session }) {
                 Utenti
               </button>
             )}
-            <button onClick={() => setVista('impostazioni')}
-              className={'px-3 py-1.5 rounded-lg text-sm ' + (vista === 'impostazioni' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900')}>
-              Impostazioni
-            </button>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-slate-400 hidden sm:inline">{session.user.email}</span>
+            <div className="relative">
+              <button onClick={() => setImpostazioniAperte(v => !v)} title="Impostazioni"
+                className={'p-2 rounded-lg border text-slate-600 hover:border-slate-400 hover:text-slate-900 ' + (impostazioniAperte ? 'border-slate-400 text-slate-900 bg-slate-50' : 'border-slate-200')}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3"></circle>
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+              </button>
+              {impostazioniAperte && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setImpostazioniAperte(false)}></div>
+                  <div className="absolute right-0 mt-2 w-72 bg-white border border-slate-200 rounded-xl shadow-lg p-4 z-20 text-left">
+                    <label className="text-sm font-medium text-slate-700 mb-2 block">Chiave Google Maps</label>
+                    <div className="flex gap-2">
+                      <input type="password" value={gmapsKey} onChange={e => setGmapsKey(e.target.value)}
+                        placeholder="Incolla qui la chiave API"
+                        className="flex-1 border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
+                      <button onClick={salvaChiave} disabled={!gmapsKey.trim()}
+                        className={'px-3 py-2 rounded-lg text-sm shrink-0 ' + (keySalvata ? 'bg-green-600 text-white' : 'bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-40')}>
+                        {keySalvata ? 'Salvata' : 'Salva'}
+                      </button>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-2">
+                      Precompilata in automatico su ogni dispositivo. Cambiala solo se serve una chiave diversa da quella dell'ufficio.
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
             <button onClick={() => supabase.auth.signOut()}
               className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-600 hover:border-slate-400 hover:text-slate-900">
               Esci
@@ -1565,26 +1591,6 @@ function App({ session }) {
                   {analPunti.every(p => p.valore === 0) && <p className="text-sm text-slate-400">Nessun preventivo nel periodo.</p>}
                 </div>
               )}
-            </div>
-          </div>
-        )}
-
-        {vista === 'impostazioni' && (
-          <div className="max-w-lg space-y-5">
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <label className="text-sm font-medium text-slate-700 mb-2 block">Chiave Google Maps</label>
-              <div className="flex gap-2">
-                <input type="password" value={gmapsKey} onChange={e => setGmapsKey(e.target.value)}
-                  placeholder="Incolla qui la chiave API"
-                  className="flex-1 border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
-                <button onClick={salvaChiave} disabled={!gmapsKey.trim()}
-                  className={'px-4 py-2 rounded-lg text-sm ' + (keySalvata ? 'bg-green-600 text-white' : 'bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-40')}>
-                  {keySalvata ? 'Salvata' : 'Salva'}
-                </button>
-              </div>
-              <p className="text-xs text-slate-500 mt-2">
-                Precompilata in automatico su ogni dispositivo, resta salvata su questo computer. Cambiala solo se serve una chiave diversa da quella dell'ufficio. Serve la Directions API attiva su Google Cloud.
-              </p>
             </div>
           </div>
         )}
