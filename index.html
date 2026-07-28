@@ -32,6 +32,11 @@ const SUPABASE_URL = 'https://zeyeaxrtziehkzoqhbaa.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpleWVheHJ0emllaGt6b3FoYmFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUxNDA2MTMsImV4cCI6MjEwMDcxNjYxM30.VZ04faYJQFk2XFHW3ls6HaYvdrQ7yJc7AX9DsALG3Kg';
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// ---- GOOGLE MAPS: chiave di default, precompilata al primo avvio su un dispositivo nuovo.
+// Ristretta su Google Cloud Console (HTTP referrer diffo333.github.io/*), quindi va bene che sia
+// visibile nel sorgente: chi la copia non può usarla da un altro sito.
+const DEFAULT_GMAPS_KEY = 'AIzaSyAqpRtKmZ3oh1VLsUEjgd_rE0xvqWSXAxo';
+
 // ---- PREFERENZE LOCALI (restano su questo computer: chiave Google, promemoria backup) ----
 const store = {
   get(key) {
@@ -655,8 +660,12 @@ function App({ session }) {
 
   useEffect(() => {
     setUltimoBackup(store.get('ultimoBackup') || null);
-    const k = store.get('gmapsKey');
-    if (k) { setGmapsKey(k); setKeySalvata(true); }
+    const k = store.get('gmapsKey') || DEFAULT_GMAPS_KEY;
+    if (k) {
+      setGmapsKey(k);
+      setKeySalvata(true);
+      if (!store.get('gmapsKey')) store.set('gmapsKey', k);
+    }
     caricaArchivioCloud();
   }, []);
 
@@ -1214,7 +1223,7 @@ function App({ session }) {
           <div>
             <p className="text-xs font-semibold tracking-widest text-red-700 uppercase">Saracini Bus Srl</p>
             <h1 className="text-3xl font-serif text-slate-900 mt-1">
-              {vista === 'storico' ? 'Preventivi inviati' : vista === 'utenti' ? 'Accessi ufficio' : vista === 'analitiche' ? 'Analitiche' : (idCorrente ? 'Modifica preventivo' : 'Calcolo preventivo')}
+              {vista === 'storico' ? 'Preventivi inviati' : vista === 'utenti' ? 'Accessi ufficio' : vista === 'analitiche' ? 'Analitiche' : vista === 'impostazioni' ? 'Impostazioni' : (idCorrente ? 'Modifica preventivo' : 'Calcolo preventivo')}
             </h1>
           </div>
           <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1">
@@ -1239,6 +1248,10 @@ function App({ session }) {
                 Utenti
               </button>
             )}
+            <button onClick={() => setVista('impostazioni')}
+              className={'px-3 py-1.5 rounded-lg text-sm ' + (vista === 'impostazioni' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900')}>
+              Impostazioni
+            </button>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-slate-400 hidden sm:inline">{session.user.email}</span>
@@ -1556,23 +1569,28 @@ function App({ session }) {
           </div>
         )}
 
+        {vista === 'impostazioni' && (
+          <div className="max-w-lg space-y-5">
+            <div className="bg-white rounded-xl border border-slate-200 p-4">
+              <label className="text-sm font-medium text-slate-700 mb-2 block">Chiave Google Maps</label>
+              <div className="flex gap-2">
+                <input type="password" value={gmapsKey} onChange={e => setGmapsKey(e.target.value)}
+                  placeholder="Incolla qui la chiave API"
+                  className="flex-1 border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
+                <button onClick={salvaChiave} disabled={!gmapsKey.trim()}
+                  className={'px-4 py-2 rounded-lg text-sm ' + (keySalvata ? 'bg-green-600 text-white' : 'bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-40')}>
+                  {keySalvata ? 'Salvata' : 'Salva'}
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 mt-2">
+                Precompilata in automatico su ogni dispositivo, resta salvata su questo computer. Cambiala solo se serve una chiave diversa da quella dell'ufficio. Serve la Directions API attiva su Google Cloud.
+              </p>
+            </div>
+          </div>
+        )}
+
         {vista === 'nuovo' && (
         <div>
-
-        {/* CHIAVE GOOGLE */}
-        <div className="bg-white rounded-xl border border-slate-200 p-4 mb-5">
-          <label className="text-sm font-medium text-slate-700 mb-2 block">Chiave Google Maps</label>
-          <div className="flex gap-2">
-            <input type="password" value={gmapsKey} onChange={e => setGmapsKey(e.target.value)}
-              placeholder="Incolla qui la chiave API"
-              className="flex-1 border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
-            <button onClick={salvaChiave} disabled={!gmapsKey.trim()}
-              className={'px-4 py-2 rounded-lg text-sm ' + (keySalvata ? 'bg-green-600 text-white' : 'bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-40')}>
-              {keySalvata ? 'Salvata' : 'Salva'}
-            </button>
-          </div>
-          <p className="text-xs text-slate-500 mt-2">Resta salvata su questo computer. Serve la Distance Matrix API attiva su Google Cloud.</p>
-        </div>
 
         <div className="grid lg:grid-cols-5 gap-6">
           <div className="lg:col-span-3 space-y-5">
