@@ -1618,7 +1618,7 @@ function App({ session }) {
                           {m.testo}
                         </div>
 
-                        {(m.azioni || []).map(a => (
+                        {(m.azioni || []).filter(a => a.tipo === 'proposta_ztl' || a.tipo === 'proposta_eliminazione_ztl' || a.tipo === 'proposta_tariffa_fissa').map(a => (
                           <div key={a.id} className="max-w-[280px] sm:max-w-[320px] w-full border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/30 rounded-2xl p-3.5 text-sm shadow-sm">
                             {a.tipo === 'proposta_ztl' && (
                               <div>
