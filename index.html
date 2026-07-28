@@ -591,6 +591,38 @@ function App({ session }) {
 
   const [impostazioniAperte, setImpostazioniAperte] = useState(false);
   const [sezioneImpostazioni, setSezioneImpostazioni] = useState('account');
+  const [chiaviApiSbloccate, setChiaviApiSbloccate] = useState(false);
+  const [pinInserito, setPinInserito] = useState('');
+  const [pinVerificando, setPinVerificando] = useState(false);
+  const [pinErrore, setPinErrore] = useState('');
+
+  async function verificaPin(e) {
+    e.preventDefault();
+    setPinErrore('');
+    setPinVerificando(true);
+    try {
+      const { data: { session: s } } = await supabase.auth.getSession();
+      const response = await fetch(SUPABASE_URL + '/functions/v1/verifica-pin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + (s ? s.access_token : ''),
+          'apikey': SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ pin: pinInserito.trim() }),
+      });
+      const dati = await response.json();
+      if (dati.corretto) {
+        setChiaviApiSbloccate(true);
+        setPinInserito('');
+      } else {
+        setPinErrore('PIN errato.');
+      }
+    } catch (err) {
+      setPinErrore('Errore di connessione.');
+    }
+    setPinVerificando(false);
+  }
   const [tema, setTema] = useState(() => store.get('tema') || 'chiaro');
 
   function impostaTema(nuovo) {
@@ -1390,7 +1422,7 @@ function App({ session }) {
                   </button>
                   <button onClick={() => setSezioneImpostazioni('mappe')}
                     className={'text-left px-3 py-2 rounded-lg text-sm whitespace-nowrap ' + (sezioneImpostazioni === 'mappe' ? 'bg-slate-900 text-white' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700')}>
-                    Mappe
+                    Chiavi API
                   </button>
                   <button onClick={() => setSezioneImpostazioni('aspetto')}
                     className={'text-left px-3 py-2 rounded-lg text-sm whitespace-nowrap ' + (sezioneImpostazioni === 'aspetto' ? 'bg-slate-900 text-white' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700')}>
@@ -1484,20 +1516,39 @@ function App({ session }) {
 
                   {sezioneImpostazioni === 'mappe' && (
                     <div>
-                      <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-3">Mappe</h3>
-                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">Chiave Google Maps</label>
-                      <div className="flex gap-2">
-                        <input type="password" value={gmapsKey} onChange={e => setGmapsKey(e.target.value)}
-                          placeholder="Incolla qui la chiave API"
-                          className="flex-1 border border-slate-200 dark:border-slate-700 rounded-[10px] px-3 py-2 text-sm" />
-                        <button onClick={salvaChiave} disabled={!gmapsKey.trim()}
-                          className={'px-3 py-2 rounded-lg text-sm shrink-0 ' + (keySalvata ? 'bg-green-600 text-white' : 'bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-40')}>
-                          {keySalvata ? 'Salvata' : 'Salva'}
-                        </button>
-                      </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-                        Precompilata in automatico su ogni dispositivo. Cambiala solo se serve una chiave diversa da quella dell'ufficio.
-                      </p>
+                      <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-3">Chiavi API</h3>
+
+                      {!sonoAdmin && !chiaviApiSbloccate ? (
+                        <form onSubmit={verificaPin} className="max-w-xs">
+                          <label className="text-sm text-slate-600 dark:text-slate-400 mb-2 block">Sezione protetta: inserisci il PIN per continuare.</label>
+                          <div className="flex gap-2">
+                            <input type="password" inputMode="numeric" value={pinInserito} onChange={e => setPinInserito(e.target.value)}
+                              placeholder="PIN" autoFocus
+                              className="flex-1 border border-slate-200 dark:border-slate-700 rounded-[10px] px-3 py-2 text-sm" />
+                            <button type="submit" disabled={!pinInserito.trim() || pinVerificando}
+                              className="px-3 py-2 rounded-lg text-sm shrink-0 bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-40">
+                              {pinVerificando ? '...' : 'Sblocca'}
+                            </button>
+                          </div>
+                          {pinErrore && <p className="text-xs text-red-600 dark:text-red-400 mt-2">{pinErrore}</p>}
+                        </form>
+                      ) : (
+                        <div>
+                          <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">Chiave Google Maps</label>
+                          <div className="flex gap-2">
+                            <input type="password" value={gmapsKey} onChange={e => setGmapsKey(e.target.value)}
+                              placeholder="Incolla qui la chiave API"
+                              className="flex-1 border border-slate-200 dark:border-slate-700 rounded-[10px] px-3 py-2 text-sm" />
+                            <button onClick={salvaChiave} disabled={!gmapsKey.trim()}
+                              className={'px-3 py-2 rounded-lg text-sm shrink-0 ' + (keySalvata ? 'bg-green-600 text-white' : 'bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-40')}>
+                              {keySalvata ? 'Salvata' : 'Salva'}
+                            </button>
+                          </div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                            Precompilata in automatico su ogni dispositivo. Cambiala solo se serve una chiave diversa da quella dell'ufficio.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
 
