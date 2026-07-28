@@ -1918,7 +1918,7 @@ function App({ session }) {
                 )}
 
                 {calc.rientroDaTour && (
-                  <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-xs text-blue-900 dark:text-blue-100">
+                  <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 rounded-lg p-3 text-xs text-blue-900 dark:text-blue-100">
                     Giorno di rientro da un tour: autista a <strong>&euro;220</strong>, perche ha dormito fuori la notte precedente.
                   </div>
                 )}
@@ -1990,7 +1990,7 @@ function App({ session }) {
               </div>
 
               {rimborsiSuggeriti.length > 0 && (
-                <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3 space-y-2">
+                <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 rounded-lg p-3 space-y-2">
                   <p className="text-xs text-blue-900 dark:text-blue-100 font-medium">Dedotto dal programma:</p>
                   <div className="flex flex-wrap gap-2">
                     {rimborsiSuggeriti.map(s => (
