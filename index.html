@@ -89,17 +89,19 @@ function rigaStoricoDaDb(r) {
 
 const cloud = {
   async caricaTutto() {
-    const [c, p, e, s] = await Promise.all([
+    const [c, p, e, s, z] = await Promise.all([
       supabase.from('clienti').select('nome').order('nome'),
       supabase.from('percorsi').select('chiave,partenza,arrivo,km'),
       supabase.from('extra').select('label,importo,nota,oraria'),
       supabase.from('storico').select('*').order('data_creazione', { ascending: false }),
+      supabase.from('ztl_italia').select('label,importo,nota,oraria').order('label'),
     ]);
     return {
       clienti: (c.data || []).map(r => r.nome),
       percorsi: p.data || [],
       extra: (e.data || []).map(r => ({ label: r.label, importo: r.importo, nota: r.nota || '', oraria: r.oraria })),
       storico: (s.data || []).map(rigaStoricoDaDb),
+      ztl: (z.data || []).map(r => ({ label: r.label, importo: r.importo, nota: r.nota || '', oraria: r.oraria })),
     };
   },
   async aggiungiCliente(nome) {
@@ -204,7 +206,9 @@ const PRESET_EXTRA = [
 
 
 // ---- ZTL E PARCHEGGI ITALIA (tariffe interne Saracini) ----
-const ZTL_ITALIA = [
+// Valore di partenza (usato finche' non arrivano i dati veri da Supabase, e come riserva
+// se il caricamento fallisse). La lista vera e aggiornabile vive nella tabella ztl_italia.
+let ZTL_ITALIA = [
   // LAZIO
   { label: 'Roma ZTL A', importo: 42, nota: 'al giorno' },
   { label: 'Roma ZTL B', importo: 450, nota: 'al giorno' },
@@ -622,13 +626,44 @@ function App({ session }) {
       if (!response.ok || dati.error) {
         setChatMessaggi(m => [...m, { ruolo: 'assistant', testo: 'Errore: ' + (dati.error || 'non riesco a rispondere ora.') }]);
       } else {
-        setChatMessaggi(m => [...m, { ruolo: 'assistant', testo: dati.risposta }]);
+        setChatMessaggi(m => [...m, { ruolo: 'assistant', testo: dati.risposta, azioni: dati.azioni || [] }]);
       }
     } catch (err) {
       setChatMessaggi(m => [...m, { ruolo: 'assistant', testo: 'Errore di connessione.' }]);
     }
     setChatCaricando(false);
   }
+
+  const [azioniStato, setAzioniStato] = useState({});
+
+  async function confermaAzioneZtl(azione) {
+    setAzioniStato(s => ({ ...s, [azione.id]: 'in corso' }));
+    try {
+      const { data: { session: s } } = await supabase.auth.getSession();
+      const response = await fetch(SUPABASE_URL + '/functions/v1/applica-modifica-ztl', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + (s ? s.access_token : ''),
+          'apikey': SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify(azione),
+      });
+      const dati = await response.json();
+      if (!response.ok || dati.error) {
+        setAzioniStato(st => ({ ...st, [azione.id]: 'errore: ' + (dati.error || 'non riuscito.') }));
+      } else {
+        setAzioniStato(st => ({ ...st, [azione.id]: 'confermata' }));
+      }
+    } catch (err) {
+      setAzioniStato(st => ({ ...st, [azione.id]: 'errore di connessione' }));
+    }
+  }
+
+  function annullaAzioneZtl(azione) {
+    setAzioniStato(s => ({ ...s, [azione.id]: 'annullata' }));
+  }
+
   const [pinInserito, setPinInserito] = useState('');
   const [pinVerificando, setPinVerificando] = useState(false);
   const [pinErrore, setPinErrore] = useState('');
@@ -792,6 +827,7 @@ function App({ session }) {
     setExtraNoti(dati.extra);
     setPercorsiNoti(dati.percorsi);
     setStorico(dati.storico);
+    if (dati.ztl.length) ZTL_ITALIA = dati.ztl;
     setScadenze(await cloud.caricaScadenze());
   }
 
@@ -811,6 +847,7 @@ function App({ session }) {
     const canale = supabase.channel('storico-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'storico' }, () => { caricaArchivioCloud(); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'scadenze' }, () => { caricaArchivioCloud(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ztl_italia' }, () => { caricaArchivioCloud(); })
       .subscribe();
     return () => supabase.removeChannel(canale);
   }, []);
@@ -1498,11 +1535,55 @@ function App({ session }) {
 
                 <div className="flex-1 overflow-y-auto p-5 space-y-3">
                   {chatMessaggi.map((m, i) => (
-                    <div key={i} className={'flex ' + (m.ruolo === 'user' ? 'justify-end' : 'justify-start')}>
+                    <div key={i} className={'flex flex-col gap-2 ' + (m.ruolo === 'user' ? 'items-end' : 'items-start')}>
                       <div className={'max-w-[85%] rounded-xl px-3.5 py-2 text-sm whitespace-pre-wrap ' +
                         (m.ruolo === 'user' ? 'bg-slate-900 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200')}>
                         {m.testo}
                       </div>
+
+                      {(m.azioni || []).map(a => (
+                        <div key={a.id} className="max-w-[85%] w-full border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/30 rounded-xl p-3 text-sm">
+                          {a.tipo === 'proposta_ztl' && (
+                            <div>
+                              <p className="font-medium text-slate-800 dark:text-slate-200">
+                                {a.nuovaVoce ? 'Nuova voce ZTL' : 'Modifica tariffa ZTL'}: {a.label}
+                              </p>
+                              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                                {a.nuovaVoce
+                                  ? <>Importo: <strong>&euro; {a.importo}</strong>{a.nota ? ' — ' + a.nota : ''}</>
+                                  : <>&euro; {a.importoAttuale}{a.notaAttuale ? ' (' + a.notaAttuale + ')' : ''} &rarr; <strong>&euro; {a.importo}</strong>{a.nota ? ' (' + a.nota + ')' : ''}</>}
+                              </p>
+                            </div>
+                          )}
+                          {a.tipo === 'proposta_eliminazione_ztl' && (
+                            <div>
+                              <p className="font-medium text-slate-800 dark:text-slate-200">Elimina voce ZTL: {a.label}</p>
+                              {a.trovata
+                                ? <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Attuale: &euro; {a.importoAttuale}</p>
+                                : <p className="text-xs text-red-600 dark:text-red-400 mt-1">Non trovata nell'elenco (forse gia' rimossa).</p>}
+                            </div>
+                          )}
+
+                          {!azioniStato[a.id] && (
+                            <div className="flex gap-2 mt-2">
+                              <button onClick={() => confermaAzioneZtl(a)}
+                                className="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs hover:bg-slate-800">
+                                Conferma
+                              </button>
+                              <button onClick={() => annullaAzioneZtl(a)}
+                                className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-300 hover:border-slate-500">
+                                Annulla
+                              </button>
+                            </div>
+                          )}
+                          {azioniStato[a.id] === 'in corso' && <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">Applico...</p>}
+                          {azioniStato[a.id] === 'confermata' && <p className="text-xs text-green-700 dark:text-green-400 mt-2">Fatto, applicata.</p>}
+                          {azioniStato[a.id] === 'annullata' && <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">Annullata.</p>}
+                          {typeof azioniStato[a.id] === 'string' && azioniStato[a.id].startsWith('errore') && (
+                            <p className="text-xs text-red-600 dark:text-red-400 mt-2">{azioniStato[a.id]}</p>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   ))}
                   {chatCaricando && (
