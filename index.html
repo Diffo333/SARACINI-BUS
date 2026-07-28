@@ -544,6 +544,7 @@ function App({ session }) {
   const [gmapsKey, setGmapsKey] = useState('');
   const [keySalvata, setKeySalvata] = useState(false);
   const [impostazioniAperte, setImpostazioniAperte] = useState(false);
+  const [sezioneImpostazioni, setSezioneImpostazioni] = useState('account');
   const [emailText, setEmailText] = useState('');
   const [aiStatus, setAiStatus] = useState('idle');
   const [aiNote, setAiNote] = useState('');
@@ -1246,32 +1247,57 @@ function App({ session }) {
           {impostazioniAperte && (
             <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/50 p-4"
               onClick={() => setImpostazioniAperte(false)}>
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
-                <div className="flex items-center justify-between mb-1">
-                  <h2 className="text-xl font-serif text-slate-900">Impostazioni</h2>
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col sm:flex-row overflow-hidden" style={{ minHeight: '340px' }} onClick={e => e.stopPropagation()}>
+
+                {/* Menu categorie */}
+                <div className="sm:w-44 shrink-0 bg-slate-50 border-b sm:border-b-0 sm:border-r border-slate-100 p-3 flex sm:flex-col gap-1 overflow-x-auto">
+                  <h2 className="hidden sm:block text-xs font-semibold uppercase tracking-wide text-slate-400 px-2 mb-1">Impostazioni</h2>
+                  <button onClick={() => setSezioneImpostazioni('account')}
+                    className={'text-left px-3 py-2 rounded-lg text-sm whitespace-nowrap ' + (sezioneImpostazioni === 'account' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100')}>
+                    Account
+                  </button>
+                  <button onClick={() => setSezioneImpostazioni('mappe')}
+                    className={'text-left px-3 py-2 rounded-lg text-sm whitespace-nowrap ' + (sezioneImpostazioni === 'mappe' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100')}>
+                    Mappe
+                  </button>
+                </div>
+
+                {/* Contenuto della categoria scelta */}
+                <div className="flex-1 p-6 relative">
                   <button onClick={() => setImpostazioniAperte(false)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100">
+                    className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="18" y1="6" x2="6" y2="18"></line>
                       <line x1="6" y1="6" x2="18" y2="18"></line>
                     </svg>
                   </button>
-                </div>
-                <p className="text-xs text-slate-400 mb-5 pb-5 border-b border-slate-100">Collegato come <span className="text-slate-600">{session.user.email}</span></p>
 
-                <label className="text-sm font-medium text-slate-700 mb-2 block">Chiave Google Maps</label>
-                <div className="flex gap-2">
-                  <input type="password" value={gmapsKey} onChange={e => setGmapsKey(e.target.value)}
-                    placeholder="Incolla qui la chiave API"
-                    className="flex-1 border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
-                  <button onClick={salvaChiave} disabled={!gmapsKey.trim()}
-                    className={'px-3 py-2 rounded-lg text-sm shrink-0 ' + (keySalvata ? 'bg-green-600 text-white' : 'bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-40')}>
-                    {keySalvata ? 'Salvata' : 'Salva'}
-                  </button>
+                  {sezioneImpostazioni === 'account' && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-800 mb-3">Account</h3>
+                      <p className="text-sm text-slate-500">Collegato come <span className="text-slate-700">{session.user.email}</span></p>
+                    </div>
+                  )}
+
+                  {sezioneImpostazioni === 'mappe' && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-800 mb-3">Mappe</h3>
+                      <label className="text-sm font-medium text-slate-700 mb-2 block">Chiave Google Maps</label>
+                      <div className="flex gap-2">
+                        <input type="password" value={gmapsKey} onChange={e => setGmapsKey(e.target.value)}
+                          placeholder="Incolla qui la chiave API"
+                          className="flex-1 border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
+                        <button onClick={salvaChiave} disabled={!gmapsKey.trim()}
+                          className={'px-3 py-2 rounded-lg text-sm shrink-0 ' + (keySalvata ? 'bg-green-600 text-white' : 'bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-40')}>
+                          {keySalvata ? 'Salvata' : 'Salva'}
+                        </button>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-2">
+                        Precompilata in automatico su ogni dispositivo. Cambiala solo se serve una chiave diversa da quella dell'ufficio.
+                      </p>
+                    </div>
+                  )}
                 </div>
-                <p className="text-xs text-slate-500 mt-2">
-                  Precompilata in automatico su ogni dispositivo. Cambiala solo se serve una chiave diversa da quella dell'ufficio.
-                </p>
               </div>
             </div>
           )}
