@@ -89,12 +89,13 @@ function rigaStoricoDaDb(r) {
 
 const cloud = {
   async caricaTutto() {
-    const [c, p, e, s, z] = await Promise.all([
+    const [c, p, e, s, z, tf] = await Promise.all([
       supabase.from('clienti').select('nome').order('nome'),
       supabase.from('percorsi').select('chiave,partenza,arrivo,km'),
       supabase.from('extra').select('label,importo,nota,oraria'),
       supabase.from('storico').select('*').order('data_creazione', { ascending: false }),
       supabase.from('ztl_italia').select('label,importo,nota,oraria').order('label'),
+      supabase.from('tariffe_fisse').select('chiave,importo'),
     ]);
     return {
       clienti: (c.data || []).map(r => r.nome),
@@ -102,6 +103,7 @@ const cloud = {
       extra: (e.data || []).map(r => ({ label: r.label, importo: r.importo, nota: r.nota || '', oraria: r.oraria })),
       storico: (s.data || []).map(rigaStoricoDaDb),
       ztl: (z.data || []).map(r => ({ label: r.label, importo: r.importo, nota: r.nota || '', oraria: r.oraria })),
+      tariffeFisse: tf.data || [],
     };
   },
   async aggiungiCliente(nome) {
@@ -640,7 +642,7 @@ function App({ session }) {
     setAzioniStato(s => ({ ...s, [azione.id]: 'in corso' }));
     try {
       const { data: { session: s } } = await supabase.auth.getSession();
-      const response = await fetch(SUPABASE_URL + '/functions/v1/applica-modifica-ztl', {
+      const response = await fetch(SUPABASE_URL + '/functions/v1/applica-modifica', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -828,6 +830,13 @@ function App({ session }) {
     setPercorsiNoti(dati.percorsi);
     setStorico(dati.storico);
     if (dati.ztl.length) ZTL_ITALIA = dati.ztl;
+    (dati.tariffeFisse || []).forEach(t => {
+      const rigaTipo = TIPI_RIGA.find(x => x.id === t.chiave);
+      if (rigaTipo) { rigaTipo.forfait = t.importo; return; }
+      if (t.chiave && t.chiave.indexOf('romaFissa_') === 0) {
+        ORE_ROMA[t.chiave.slice('romaFissa_'.length)] = t.importo;
+      }
+    });
     setScadenze(await cloud.caricaScadenze());
   }
 
@@ -848,6 +857,7 @@ function App({ session }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'storico' }, () => { caricaArchivioCloud(); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'scadenze' }, () => { caricaArchivioCloud(); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'ztl_italia' }, () => { caricaArchivioCloud(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tariffe_fisse' }, () => { caricaArchivioCloud(); })
       .subscribe();
     return () => supabase.removeChannel(canale);
   }, []);
@@ -1561,6 +1571,14 @@ function App({ session }) {
                               {a.trovata
                                 ? <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Attuale: &euro; {a.importoAttuale}</p>
                                 : <p className="text-xs text-red-600 dark:text-red-400 mt-1">Non trovata nell'elenco (forse gia' rimossa).</p>}
+                            </div>
+                          )}
+                          {a.tipo === 'proposta_tariffa_fissa' && (
+                            <div>
+                              <p className="font-medium text-slate-800 dark:text-slate-200">Modifica tariffa fissa: {a.label}</p>
+                              {a.trovata
+                                ? <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">&euro; {a.importoAttuale} &rarr; <strong>&euro; {a.importo}</strong></p>
+                                : <p className="text-xs text-red-600 dark:text-red-400 mt-1">Chiave non riconosciuta, non posso applicarla.</p>}
                             </div>
                           )}
 
