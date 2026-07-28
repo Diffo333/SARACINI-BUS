@@ -672,6 +672,7 @@ function App({ session }) {
   const [vistaTabellaAnalitiche, setVistaTabellaAnalitiche] = useState(false);
   const [filtroStatoAnalitiche, setFiltroStatoAnalitiche] = useState('tutti');
   const [kmStatus, setKmStatus] = useState({});
+  const [pedaggioStatus, setPedaggioStatus] = useState({});
 
   // ---- GESTIONE UTENTI (solo amministratori) ----
   const [sonoAdmin, setSonoAdmin] = useState(false);
@@ -1196,6 +1197,35 @@ function App({ session }) {
     sc.onload = done;
     sc.onerror = () => setKmStatus(s => ({ ...s, [riga.id]: 'Google non raggiungibile. Controlla chiave e connessione.' }));
     document.head.appendChild(sc);
+  }
+
+  // ---- HERE: stima automatica del pedaggio ----
+  async function calcolaPedaggio(riga) {
+    const o = riga.partenza.trim(), d = riga.arrivo.trim();
+    if (!o || !d) { setPedaggioStatus(s => ({ ...s, [riga.id]: 'Inserisci partenza e arrivo.' })); return; }
+    setPedaggioStatus(s => ({ ...s, [riga.id]: 'Calcolo in corso...' }));
+    try {
+      const { data: { session: s } } = await supabase.auth.getSession();
+      const tappe = (riga.tappe || []).map(t => t.luogo.trim()).filter(Boolean);
+      const response = await fetch(SUPABASE_URL + '/functions/v1/calcola-pedaggio', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + (s ? s.access_token : ''),
+          'apikey': SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ partenza: o, arrivo: d, tappe }),
+      });
+      const dati = await response.json();
+      if (!response.ok || dati.error) {
+        setPedaggioStatus(s => ({ ...s, [riga.id]: 'Errore: ' + (dati.error || 'servizio non raggiungibile.') }));
+        return;
+      }
+      aggiornaRiga(riga.id, { pedaggio: dati.pedaggio });
+      setPedaggioStatus(s => ({ ...s, [riga.id]: dati.trovatiPedaggi ? ('Trovato: € ' + dati.pedaggio) : 'Nessun pedaggio su questo percorso.' }));
+    } catch (err) {
+      setPedaggioStatus(s => ({ ...s, [riga.id]: 'Errore di connessione.' }));
+    }
   }
 
   async function salvaPercorso(riga) {
@@ -2126,6 +2156,10 @@ function App({ session }) {
                         className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs hover:bg-blue-700">
                         Calcola km con Google
                       </button>
+                      <button onClick={() => calcolaPedaggio(riga)}
+                        className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs hover:bg-indigo-700">
+                        Calcola pedaggio
+                      </button>
                       <button onClick={() => salvaPercorso(riga)} disabled={!riga.km}
                         className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 dark:text-slate-300 hover:border-slate-500 disabled:opacity-40">
                         Salva percorso
@@ -2138,6 +2172,7 @@ function App({ session }) {
                     </div>
 
                     {kmStatus[riga.id] && <p className="text-xs text-blue-600 dark:text-blue-400">{kmStatus[riga.id]}</p>}
+                    {pedaggioStatus[riga.id] && <p className="text-xs text-indigo-600 dark:text-indigo-400">{pedaggioStatus[riga.id]}</p>}
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
