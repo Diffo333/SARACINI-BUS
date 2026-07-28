@@ -46,7 +46,7 @@
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef } = React;
 
 // ---- SUPABASE: archivio condiviso con tutto l'ufficio ----
 const SUPABASE_URL = 'https://zeyeaxrtziehkzoqhbaa.supabase.co';
@@ -604,6 +604,11 @@ function App({ session }) {
   ]);
   const [chatInput, setChatInput] = useState('');
   const [chatCaricando, setChatCaricando] = useState(false);
+  const chatFineRef = useRef(null);
+
+  useEffect(() => {
+    if (chatFineRef.current) chatFineRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [chatMessaggi, chatCaricando, chatAperta]);
 
   async function inviaMessaggioChat(e) {
     e.preventDefault();
@@ -1529,13 +1534,21 @@ function App({ session }) {
           </div>
 
           {chatAperta && (
-            <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/50 p-4"
+            <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4"
               onClick={() => setChatAperta(false)}>
               <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden" style={{ minHeight: '420px' }} onClick={e => e.stopPropagation()}>
-                <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
-                  <h2 className="text-lg font-serif text-slate-900 dark:text-slate-100">Assistente</h2>
+                <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-red-700 text-white flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-base font-medium text-slate-900 dark:text-slate-100 leading-tight">Assistente</h2>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 leading-tight">Saracini Bus</p>
+                  </div>
                   <button onClick={() => setChatAperta(false)}
-                    className="p-1.5 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
+                    className="p-1.5 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 shrink-0">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="18" y1="6" x2="6" y2="18"></line>
                       <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -1543,83 +1556,95 @@ function App({ session }) {
                   </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-5 space-y-3">
+                <div className="flex-1 overflow-y-auto p-5 space-y-4">
                   {chatMessaggi.map((m, i) => (
-                    <div key={i} className={'flex flex-col gap-2 ' + (m.ruolo === 'user' ? 'items-end' : 'items-start')}>
-                      <div className={'max-w-[85%] rounded-xl px-3.5 py-2 text-sm whitespace-pre-wrap ' +
-                        (m.ruolo === 'user' ? 'bg-slate-900 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200')}>
-                        {m.testo}
-                      </div>
-
-                      {(m.azioni || []).map(a => (
-                        <div key={a.id} className="max-w-[85%] w-full border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/30 rounded-xl p-3 text-sm">
-                          {a.tipo === 'proposta_ztl' && (
-                            <div>
-                              <p className="font-medium text-slate-800 dark:text-slate-200">
-                                {a.nuovaVoce ? 'Nuova voce ZTL' : 'Modifica tariffa ZTL'}: {a.label}
-                              </p>
-                              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-                                {a.nuovaVoce
-                                  ? <>Importo: <strong>&euro; {a.importo}</strong>{a.nota ? ' — ' + a.nota : ''}</>
-                                  : <>&euro; {a.importoAttuale}{a.notaAttuale ? ' (' + a.notaAttuale + ')' : ''} &rarr; <strong>&euro; {a.importo}</strong>{a.nota ? ' (' + a.nota + ')' : ''}</>}
-                              </p>
-                            </div>
-                          )}
-                          {a.tipo === 'proposta_eliminazione_ztl' && (
-                            <div>
-                              <p className="font-medium text-slate-800 dark:text-slate-200">Elimina voce ZTL: {a.label}</p>
-                              {a.trovata
-                                ? <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Attuale: &euro; {a.importoAttuale}</p>
-                                : <p className="text-xs text-red-600 dark:text-red-400 mt-1">Non trovata nell'elenco (forse gia' rimossa).</p>}
-                            </div>
-                          )}
-                          {a.tipo === 'proposta_tariffa_fissa' && (
-                            <div>
-                              <p className="font-medium text-slate-800 dark:text-slate-200">Modifica tariffa fissa: {a.label}</p>
-                              {a.trovata
-                                ? <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">&euro; {a.importoAttuale} &rarr; <strong>&euro; {a.importo}</strong></p>
-                                : <p className="text-xs text-red-600 dark:text-red-400 mt-1">Chiave non riconosciuta, non posso applicarla.</p>}
-                            </div>
-                          )}
-
-                          {!azioniStato[a.id] && (
-                            <div className="flex gap-2 mt-2">
-                              <button onClick={() => confermaAzioneZtl(a)}
-                                className="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs hover:bg-slate-800">
-                                Conferma
-                              </button>
-                              <button onClick={() => annullaAzioneZtl(a)}
-                                className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-300 hover:border-slate-500">
-                                Annulla
-                              </button>
-                            </div>
-                          )}
-                          {azioniStato[a.id] === 'in corso' && <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">Applico...</p>}
-                          {azioniStato[a.id] === 'confermata' && <p className="text-xs text-green-700 dark:text-green-400 mt-2">Fatto, applicata.</p>}
-                          {azioniStato[a.id] === 'annullata' && <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">Annullata.</p>}
-                          {typeof azioniStato[a.id] === 'string' && azioniStato[a.id].startsWith('errore') && (
-                            <p className="text-xs text-red-600 dark:text-red-400 mt-2">{azioniStato[a.id]}</p>
-                          )}
+                    <div key={i} className={'flex gap-2 ' + (m.ruolo === 'user' ? 'justify-end' : 'justify-start')}>
+                      {m.ruolo !== 'user' && (
+                        <div className="w-6 h-6 rounded-full bg-red-700 text-white flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-medium">AI</div>
+                      )}
+                      <div className={'flex flex-col gap-2 min-w-0 ' + (m.ruolo === 'user' ? 'items-end' : 'items-start')}>
+                        <div className={'max-w-[280px] sm:max-w-[320px] rounded-2xl px-3.5 py-2.5 text-sm whitespace-pre-wrap shadow-sm ' +
+                          (m.ruolo === 'user' ? 'bg-slate-900 text-white rounded-tr-sm' : 'bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-tl-sm')}>
+                          {m.testo}
                         </div>
-                      ))}
+
+                        {(m.azioni || []).map(a => (
+                          <div key={a.id} className="max-w-[280px] sm:max-w-[320px] w-full border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/30 rounded-2xl p-3.5 text-sm shadow-sm">
+                            {a.tipo === 'proposta_ztl' && (
+                              <div>
+                                <p className="font-medium text-slate-800 dark:text-slate-200">
+                                  {a.nuovaVoce ? 'Nuova voce ZTL' : 'Modifica tariffa ZTL'}: {a.label}
+                                </p>
+                                <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                                  {a.nuovaVoce
+                                    ? <>Importo: <strong>&euro; {a.importo}</strong>{a.nota ? ' — ' + a.nota : ''}</>
+                                    : <>&euro; {a.importoAttuale}{a.notaAttuale ? ' (' + a.notaAttuale + ')' : ''} &rarr; <strong>&euro; {a.importo}</strong>{a.nota ? ' (' + a.nota + ')' : ''}</>}
+                                </p>
+                              </div>
+                            )}
+                            {a.tipo === 'proposta_eliminazione_ztl' && (
+                              <div>
+                                <p className="font-medium text-slate-800 dark:text-slate-200">Elimina voce ZTL: {a.label}</p>
+                                {a.trovata
+                                  ? <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Attuale: &euro; {a.importoAttuale}</p>
+                                  : <p className="text-xs text-red-600 dark:text-red-400 mt-1">Non trovata nell'elenco (forse gia' rimossa).</p>}
+                              </div>
+                            )}
+                            {a.tipo === 'proposta_tariffa_fissa' && (
+                              <div>
+                                <p className="font-medium text-slate-800 dark:text-slate-200">Modifica tariffa fissa: {a.label}</p>
+                                {a.trovata
+                                  ? <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">&euro; {a.importoAttuale} &rarr; <strong>&euro; {a.importo}</strong></p>
+                                  : <p className="text-xs text-red-600 dark:text-red-400 mt-1">Chiave non riconosciuta, non posso applicarla.</p>}
+                              </div>
+                            )}
+
+                            {!azioniStato[a.id] && (
+                              <div className="flex gap-2 mt-2.5">
+                                <button onClick={() => confermaAzioneZtl(a)}
+                                  className="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-medium hover:bg-slate-800">
+                                  Conferma
+                                </button>
+                                <button onClick={() => annullaAzioneZtl(a)}
+                                  className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-300 hover:border-slate-500">
+                                  Annulla
+                                </button>
+                              </div>
+                            )}
+                            {azioniStato[a.id] === 'in corso' && <p className="text-xs text-slate-400 dark:text-slate-500 mt-2.5">Applico...</p>}
+                            {azioniStato[a.id] === 'confermata' && <p className="text-xs text-green-700 dark:text-green-400 mt-2.5 flex items-center gap-1">&#10003; Applicata</p>}
+                            {azioniStato[a.id] === 'annullata' && <p className="text-xs text-slate-400 dark:text-slate-500 mt-2.5">Annullata.</p>}
+                            {typeof azioniStato[a.id] === 'string' && azioniStato[a.id].startsWith('errore') && (
+                              <p className="text-xs text-red-600 dark:text-red-400 mt-2.5">{azioniStato[a.id]}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ))}
                   {chatCaricando && (
-                    <div className="flex justify-start">
-                      <div className="max-w-[85%] rounded-xl px-3.5 py-2 text-sm bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500">
-                        Sto scrivendo...
+                    <div className="flex gap-2 justify-start">
+                      <div className="w-6 h-6 rounded-full bg-red-700 text-white flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-medium">AI</div>
+                      <div className="rounded-2xl rounded-tl-sm px-4 py-3 bg-slate-100 dark:bg-slate-700 shadow-sm flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500 animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500 animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500 animate-bounce" style={{ animationDelay: '300ms' }}></span>
                       </div>
                     </div>
                   )}
+                  <div ref={chatFineRef}></div>
                 </div>
 
-                <form onSubmit={inviaMessaggioChat} className="flex gap-2 p-4 border-t border-slate-100 dark:border-slate-800 shrink-0">
+                <form onSubmit={inviaMessaggioChat} className="flex gap-2 p-3.5 border-t border-slate-100 dark:border-slate-800 shrink-0">
                   <input value={chatInput} onChange={e => setChatInput(e.target.value)}
                     placeholder="Scrivi un messaggio..." autoFocus
-                    className="flex-1 border border-slate-200 dark:border-slate-700 rounded-[10px] px-3 py-2 text-sm" />
-                  <button type="submit" disabled={!chatInput.trim() || chatCaricando}
-                    className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm hover:bg-slate-800 disabled:opacity-40 shrink-0">
-                    Invia
+                    className="flex-1 border border-slate-200 dark:border-slate-700 rounded-full px-4 py-2.5 text-sm" />
+                  <button type="submit" disabled={!chatInput.trim() || chatCaricando} title="Invia"
+                    className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center hover:bg-slate-800 disabled:opacity-40 shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="22" y1="2" x2="11" y2="13"></line>
+                      <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
                   </button>
                 </form>
               </div>
