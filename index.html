@@ -146,6 +146,23 @@ const cloud = {
     const { error } = await supabase.from('storico').delete().eq('id', id);
     return !error;
   },
+  async caricaScadenze() {
+    const { data, error } = await supabase.from('scadenze').select('*').order('scadenza', { ascending: true });
+    if (error) return [];
+    return data || [];
+  },
+  async salvaScadenza(row) {
+    const { error } = await supabase.from('scadenze').insert(row);
+    return !error;
+  },
+  async segnaScadenza(id, fatto) {
+    const { error } = await supabase.from('scadenze').update({ fatto }).eq('id', id);
+    return !error;
+  },
+  async eliminaScadenza(id) {
+    const { error } = await supabase.from('scadenze').delete().eq('id', id);
+    return !error;
+  },
 };
 
 const TIPI_RIGA = [
@@ -564,6 +581,14 @@ function App({ session }) {
   const [clienteMessage, setClienteMessage] = useState('');
   const [gmapsKey, setGmapsKey] = useState('');
   const [keySalvata, setKeySalvata] = useState(false);
+  const [scadenze, setScadenze] = useState([]);
+  const [nuovaScadenzaTitolo, setNuovaScadenzaTitolo] = useState('');
+  const [nuovaScadenzaData, setNuovaScadenzaData] = useState('');
+  const [nuovaScadenzaNote, setNuovaScadenzaNote] = useState('');
+  const [scadenzeCaricando, setScadenzeCaricando] = useState(false);
+  const [scadenzeMsg, setScadenzeMsg] = useState('');
+  const [notifichePermesso, setNotifichePermesso] = useState(() => (typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'));
+
   const [impostazioniAperte, setImpostazioniAperte] = useState(false);
   const [sezioneImpostazioni, setSezioneImpostazioni] = useState('account');
   const [tema, setTema] = useState(() => store.get('tema') || 'sistema');
@@ -697,6 +722,7 @@ function App({ session }) {
     setExtraNoti(dati.extra);
     setPercorsiNoti(dati.percorsi);
     setStorico(dati.storico);
+    setScadenze(await cloud.caricaScadenze());
   }
 
   useEffect(() => {
@@ -710,13 +736,77 @@ function App({ session }) {
     caricaArchivioCloud();
   }, []);
 
-  // Storico condiviso: se un collega salva/modifica un preventivo, lo vediamo comparire subito
+  // Storico e scadenzario condivisi: se un collega salva/modifica qualcosa, lo vediamo comparire subito
   useEffect(() => {
     const canale = supabase.channel('storico-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'storico' }, () => { caricaArchivioCloud(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'scadenze' }, () => { caricaArchivioCloud(); })
       .subscribe();
     return () => supabase.removeChannel(canale);
   }, []);
+
+  // Scadenzario: avvisa (notifica del browser, se autorizzata) per le scadenze di oggi o gia scadute,
+  // al massimo una volta al giorno per non essere ripetitivo.
+  useEffect(() => {
+    function controllaScadenzeDaAvvisare() {
+      if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+      const oggi = new Date(); oggi.setHours(0, 0, 0, 0);
+      const daAvvisare = scadenze.filter(s => !s.fatto && new Date(s.scadenza + 'T00:00:00') <= oggi);
+      if (daAvvisare.length === 0) return;
+      const oggiChiave = oggi.toISOString().slice(0, 10);
+      if (store.get('scadenzeAvvisateIl') === oggiChiave) return;
+      new Notification('Scadenzario Saracini Bus', {
+        body: daAvvisare.length === 1
+          ? '1 scadenza da guardare: ' + daAvvisare[0].titolo
+          : daAvvisare.length + ' scadenze da guardare (la più vecchia: ' + daAvvisare[0].titolo + ')',
+      });
+      store.set('scadenzeAvvisateIl', oggiChiave);
+    }
+    controllaScadenzeDaAvvisare();
+    const id = setInterval(controllaScadenzeDaAvvisare, 60 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [scadenze]);
+
+  function chiediPermessoNotifiche() {
+    if (typeof Notification === 'undefined') return;
+    Notification.requestPermission().then(p => setNotifichePermesso(p));
+  }
+
+  async function aggiungiScadenza(e) {
+    e.preventDefault();
+    setScadenzeMsg('');
+    if (!nuovaScadenzaTitolo.trim() || !nuovaScadenzaData) {
+      setScadenzeMsg('Compila almeno titolo e data.');
+      return;
+    }
+    setScadenzeCaricando(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    const ok = await cloud.salvaScadenza({
+      titolo: nuovaScadenzaTitolo.trim(),
+      scadenza: nuovaScadenzaData,
+      note: nuovaScadenzaNote.trim() || null,
+      creato_da: user ? user.email : null,
+    });
+    if (ok) {
+      setNuovaScadenzaTitolo(''); setNuovaScadenzaData(''); setNuovaScadenzaNote('');
+      await caricaArchivioCloud();
+    } else {
+      setScadenzeMsg('Errore nel salvataggio. Hai gia creato la tabella "scadenze" su Supabase?');
+    }
+    setScadenzeCaricando(false);
+    setTimeout(() => setScadenzeMsg(''), 5000);
+  }
+
+  async function segnaScadenzaFatta(id, fatto) {
+    await cloud.segnaScadenza(id, fatto);
+    await caricaArchivioCloud();
+  }
+
+  async function eliminaScadenzaFn(id, titolo) {
+    if (!confirm('Eliminare la scadenza "' + titolo + '"?')) return;
+    await cloud.eliminaScadenza(id);
+    await caricaArchivioCloud();
+  }
 
   useEffect(() => {
     setRighe(prev => prev.map((r, i) => {
@@ -1161,6 +1251,9 @@ function App({ session }) {
     svolto: storico.filter(p => p.stato === 'svolto').length,
   };
 
+  const oggiSenzaOra = new Date(); oggiSenzaOra.setHours(0, 0, 0, 0);
+  const scadenzeDaFare = scadenze.filter(s => !s.fatto && new Date(s.scadenza + 'T00:00:00') <= oggiSenzaOra);
+
   // ---- Analitiche: andamento del valore preventivato ----
   const { inizio: analInizio, fine: analFine } = calcolaIntervallo(periodoPreset, dataInizioCustom, dataFineCustom);
   const storicoPerAnalitiche = filtroStatoAnalitiche === 'tutti'
@@ -1265,7 +1358,7 @@ function App({ session }) {
             <div>
               <p className="text-xs font-semibold tracking-widest text-red-700 dark:text-red-400 uppercase">Saracini Bus Srl</p>
               <h1 className="text-3xl font-serif text-slate-900 dark:text-slate-100 mt-1">
-                {vista === 'storico' ? 'Preventivi inviati' : vista === 'analitiche' ? 'Analitiche' : (idCorrente ? 'Modifica preventivo' : 'Calcolo preventivo')}
+                {vista === 'storico' ? 'Preventivi inviati' : vista === 'analitiche' ? 'Analitiche' : vista === 'scadenzario' ? 'Scadenzario' : (idCorrente ? 'Modifica preventivo' : 'Calcolo preventivo')}
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -1447,6 +1540,13 @@ function App({ session }) {
             <button onClick={() => setVista('analitiche')}
               className={'px-3 py-1.5 rounded-lg text-sm ' + (vista === 'analitiche' ? 'bg-slate-900 text-white' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100')}>
               Analitiche
+            </button>
+            <button onClick={() => setVista('scadenzario')}
+              className={'px-3 py-1.5 rounded-lg text-sm flex items-center gap-1.5 ' + (vista === 'scadenzario' ? 'bg-slate-900 text-white' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100')}>
+              Scadenzario
+              {scadenzeDaFare.length > 0 && (
+                <span className={'text-xs px-1.5 rounded-full ' + (vista === 'scadenzario' ? 'bg-white/20' : 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300')}>{scadenzeDaFare.length}</span>
+              )}
             </button>
           </div>
         </header>
@@ -1689,6 +1789,103 @@ function App({ session }) {
                   ))}
                   {analPunti.every(p => p.valore === 0) && <p className="text-sm text-slate-400 dark:text-slate-500">Nessun preventivo nel periodo.</p>}
                 </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {vista === 'scadenzario' && (
+          <div className="space-y-4 max-w-2xl">
+            {notifichePermesso === 'default' && (
+              <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 rounded-xl p-3 flex items-center gap-3">
+                <span className="text-sm text-blue-900 dark:text-blue-100 flex-1">Vuoi essere avvisato dal browser quando una scadenza arriva? Funziona solo mentre questa pagina è aperta.</span>
+                <button onClick={chiediPermessoNotifiche}
+                  className="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-medium hover:bg-slate-800 shrink-0">
+                  Attiva notifiche
+                </button>
+              </div>
+            )}
+            {notifichePermesso === 'denied' && (
+              <p className="text-xs text-slate-400 dark:text-slate-500">Notifiche del browser bloccate. Per attivarle, controlla le autorizzazioni del sito nel browser.</p>
+            )}
+
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5">
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Aggiungi una scadenza</p>
+              <form onSubmit={aggiungiScadenza} className="space-y-3">
+                <div className="grid sm:grid-cols-[1fr_auto] gap-3">
+                  <div>
+                    <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Cosa</label>
+                    <input value={nuovaScadenzaTitolo} onChange={e => setNuovaScadenzaTitolo(e.target.value)}
+                      placeholder="es. Rinnovare il PAT su GitHub" className="w-full border border-slate-200 dark:border-slate-700 rounded-[10px] px-3 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Entro il</label>
+                    <input type="date" value={nuovaScadenzaData} onChange={e => setNuovaScadenzaData(e.target.value)}
+                      className="border border-slate-200 dark:border-slate-700 rounded-[10px] px-3 py-2 text-sm" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Note (facoltative)</label>
+                  <input value={nuovaScadenzaNote} onChange={e => setNuovaScadenzaNote(e.target.value)}
+                    placeholder="es. numero, link, promemoria" className="w-full border border-slate-200 dark:border-slate-700 rounded-[10px] px-3 py-2 text-sm" />
+                </div>
+                {scadenzeMsg && <p className="text-xs text-slate-600 dark:text-slate-400">{scadenzeMsg}</p>}
+                <button type="submit" disabled={scadenzeCaricando}
+                  className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm hover:bg-slate-800 disabled:opacity-50">
+                  {scadenzeCaricando ? 'Salvataggio...' : 'Aggiungi'}
+                </button>
+              </form>
+            </div>
+
+            <div className="space-y-2">
+              {scadenze.filter(s => !s.fatto).length === 0 && scadenze.filter(s => s.fatto).length === 0 && (
+                <p className="text-sm text-slate-400 dark:text-slate-500">Nessuna scadenza. Aggiungine una qui sopra.</p>
+              )}
+
+              {scadenze.filter(s => !s.fatto).map(s => {
+                const inRitardo = new Date(s.scadenza + 'T00:00:00') < oggiSenzaOra;
+                const oggiStessa = new Date(s.scadenza + 'T00:00:00').getTime() === oggiSenzaOra.getTime();
+                return (
+                  <div key={s.id} className={'flex items-start gap-3 border rounded-xl p-3 ' +
+                    (inRitardo ? 'border-red-200 dark:border-red-800/60 bg-red-50 dark:bg-red-950/30'
+                      : oggiStessa ? 'border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/30'
+                      : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800')}>
+                    <button onClick={() => segnaScadenzaFatta(s.id, true)} title="Segna come fatta"
+                      className="mt-0.5 shrink-0 w-5 h-5 rounded-full border-2 border-slate-300 dark:border-slate-600 hover:border-green-500"></button>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-slate-900 dark:text-slate-100">{s.titolo}</p>
+                      <p className={'text-xs mt-0.5 ' + (inRitardo ? 'text-red-600 dark:text-red-400 font-medium' : oggiStessa ? 'text-amber-600 dark:text-amber-400 font-medium' : 'text-slate-400 dark:text-slate-500')}>
+                        {inRitardo ? 'Scaduta il ' : 'Entro il '}{new Date(s.scadenza + 'T00:00:00').toLocaleDateString('it-IT')}
+                      </p>
+                      {s.note && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{s.note}</p>}
+                    </div>
+                    <button onClick={() => eliminaScadenzaFn(s.id, s.titolo)} title="Elimina"
+                      className="shrink-0 text-xs text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400">
+                      Elimina
+                    </button>
+                  </div>
+                );
+              })}
+
+              {scadenze.filter(s => s.fatto).length > 0 && (
+                <details className="pt-2">
+                  <summary className="text-xs text-slate-400 dark:text-slate-500 cursor-pointer">Fatte ({scadenze.filter(s => s.fatto).length})</summary>
+                  <div className="space-y-2 mt-2">
+                    {scadenze.filter(s => s.fatto).map(s => (
+                      <div key={s.id} className="flex items-start gap-3 border border-slate-100 dark:border-slate-800 rounded-xl p-3">
+                        <button onClick={() => segnaScadenzaFatta(s.id, false)} title="Segna come da fare"
+                          className="mt-0.5 shrink-0 w-5 h-5 rounded-full border-2 border-green-500 bg-green-500 text-white text-xs flex items-center justify-center">&#10003;</button>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm text-slate-400 dark:text-slate-500 line-through">{s.titolo}</p>
+                        </div>
+                        <button onClick={() => eliminaScadenzaFn(s.id, s.titolo)} title="Elimina"
+                          className="shrink-0 text-xs text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400">
+                          Elimina
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </details>
               )}
             </div>
           </div>
