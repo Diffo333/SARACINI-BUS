@@ -8,11 +8,24 @@
 <meta name="theme-color" content="#C4161C">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
+<script>
+// Applica subito il tema salvato (o quello del sistema) prima che la pagina si disegni,
+// cosi non si vede un lampo chiaro prima di passare allo scuro.
+(function () {
+  try {
+    var raw = localStorage.getItem('saracini:tema');
+    var tema = raw ? JSON.parse(raw) : 'sistema';
+    var scuro = tema === 'scuro' || (tema === 'sistema' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    if (scuro) document.documentElement.classList.add('dark');
+  } catch (e) {}
+})();
+</script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { darkMode: 'class' };</script>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   body { font-family: 'Inter', sans-serif; }
@@ -20,6 +33,14 @@
   input[type=number]::-webkit-outer-spin-button,
   input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   input[type=number] { -moz-appearance: textfield; }
+  html.dark { color-scheme: dark; }
+  .dark body { background: #020617; }
+  .dark input:not(.bg-transparent):not([type="checkbox"]), .dark select, .dark textarea {
+    background-color: #1e293b;
+    color: #e2e8f0;
+    border-color: #334155;
+  }
+  .dark ::placeholder { color: #64748b; }
 </style>
 </head>
 <body>
@@ -231,9 +252,9 @@ const ZTL_ITALIA = [
 
 // ---- STATI DEL PREVENTIVO ----
 const STATI = {
-  inviato:    { label: 'Inviato',    colore: 'bg-amber-400',  testo: 'text-amber-700',  bordo: 'border-amber-200' },
-  confermato: { label: 'Confermato', colore: 'bg-green-500',  testo: 'text-green-700',  bordo: 'border-green-200' },
-  svolto:     { label: 'Svolto',     colore: 'bg-slate-800',  testo: 'text-slate-500',  bordo: 'border-slate-200' },
+  inviato:    { label: 'Inviato',    colore: 'bg-amber-400',  testo: 'text-amber-700',  bordo: 'border-amber-200 dark:border-amber-800' },
+  confermato: { label: 'Confermato', colore: 'bg-green-500',  testo: 'text-green-700 dark:text-green-400',  bordo: 'border-green-200 dark:border-green-800' },
+  svolto:     { label: 'Svolto',     colore: 'bg-slate-800',  testo: 'text-slate-500 dark:text-slate-400',  bordo: 'border-slate-200 dark:border-slate-700' },
 };
 
 function round5(n) { return Math.round(n / 5) * 5; }
@@ -423,7 +444,7 @@ function GraficoAndamento({ punti }) {
   }
 
   if (!punti.length) {
-    return <p className="text-sm text-slate-400">Nessun dato nel periodo selezionato.</p>;
+    return <p className="text-sm text-slate-400 dark:text-slate-500">Nessun dato nel periodo selezionato.</p>;
   }
 
   return (
@@ -495,23 +516,23 @@ function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-      <form onSubmit={entra} className="bg-white border border-slate-200 rounded-xl p-6 w-full max-w-sm space-y-4">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-6">
+      <form onSubmit={entra} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 w-full max-w-sm space-y-4">
         <div>
-          <p className="text-xs font-semibold tracking-widest text-red-700 uppercase">Saracini Bus Srl</p>
-          <h1 className="text-2xl font-serif text-slate-900 mt-1">Accedi</h1>
+          <p className="text-xs font-semibold tracking-widest text-red-700 dark:text-red-400 uppercase">Saracini Bus Srl</p>
+          <h1 className="text-2xl font-serif text-slate-900 dark:text-slate-100 mt-1">Accedi</h1>
         </div>
         <div>
-          <label className="text-xs text-slate-500 mb-1 block">Nome utente</label>
+          <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Nome utente</label>
           <input type="text" required value={username} onChange={e => setUsername(e.target.value)}
-            className="w-full border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
+            className="w-full border border-slate-200 dark:border-slate-700 rounded-[10px] px-3 py-2 text-sm" />
         </div>
         <div>
-          <label className="text-xs text-slate-500 mb-1 block">Password</label>
+          <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Password</label>
           <input type="password" required value={password} onChange={e => setPassword(e.target.value)}
-            className="w-full border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
+            className="w-full border border-slate-200 dark:border-slate-700 rounded-[10px] px-3 py-2 text-sm" />
         </div>
-        {errore && <p className="text-xs text-red-600">{errore}</p>}
+        {errore && <p className="text-xs text-red-600 dark:text-red-400">{errore}</p>}
         <button type="submit" disabled={caricando}
           className="w-full py-2.5 rounded-lg bg-slate-900 text-white text-sm hover:bg-slate-800 disabled:opacity-50">
           {caricando ? 'Accesso...' : 'Entra'}
@@ -531,7 +552,7 @@ function Root() {
   }, []);
 
   if (session === undefined) {
-    return <div className="min-h-screen flex items-center justify-center text-sm text-slate-400">Caricamento...</div>;
+    return <div className="min-h-screen flex items-center justify-center text-sm text-slate-400 dark:text-slate-500">Caricamento...</div>;
   }
   if (!session) return <Login />;
   return <App session={session} />;
@@ -545,6 +566,24 @@ function App({ session }) {
   const [keySalvata, setKeySalvata] = useState(false);
   const [impostazioniAperte, setImpostazioniAperte] = useState(false);
   const [sezioneImpostazioni, setSezioneImpostazioni] = useState('account');
+  const [tema, setTema] = useState(() => store.get('tema') || 'sistema');
+
+  function impostaTema(nuovo) {
+    setTema(nuovo);
+    store.set('tema', nuovo);
+  }
+
+  useEffect(() => {
+    const applica = () => {
+      const scuro = tema === 'scuro' || (tema === 'sistema' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.classList.toggle('dark', scuro);
+    };
+    applica();
+    if (tema !== 'sistema') return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    mq.addEventListener('change', applica);
+    return () => mq.removeEventListener('change', applica);
+  }, [tema]);
   const [emailText, setEmailText] = useState('');
   const [aiStatus, setAiStatus] = useState('idle');
   const [aiNote, setAiNote] = useState('');
@@ -1219,26 +1258,26 @@ function App({ session }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6">
       <div className="max-w-6xl mx-auto">
         <header className="mb-6">
           <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
             <div>
-              <p className="text-xs font-semibold tracking-widest text-red-700 uppercase">Saracini Bus Srl</p>
-              <h1 className="text-3xl font-serif text-slate-900 mt-1">
+              <p className="text-xs font-semibold tracking-widest text-red-700 dark:text-red-400 uppercase">Saracini Bus Srl</p>
+              <h1 className="text-3xl font-serif text-slate-900 dark:text-slate-100 mt-1">
                 {vista === 'storico' ? 'Preventivi inviati' : vista === 'analitiche' ? 'Analitiche' : (idCorrente ? 'Modifica preventivo' : 'Calcolo preventivo')}
               </h1>
             </div>
             <div className="flex items-center gap-2">
               <button onClick={() => setImpostazioniAperte(true)} title="Impostazioni"
-                className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:border-slate-400 hover:text-slate-900">
+                className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-400 dark:hover:border-slate-500 hover:text-slate-900 dark:hover:text-slate-100">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="3"></circle>
                   <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
                 </svg>
               </button>
               <button onClick={() => supabase.auth.signOut()}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-600 hover:border-slate-400 hover:text-slate-900">
+                className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-400 hover:border-slate-400 dark:hover:border-slate-500 hover:text-slate-900 dark:hover:text-slate-100">
                 Esci
               </button>
             </div>
@@ -1247,25 +1286,29 @@ function App({ session }) {
           {impostazioniAperte && (
             <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/50 p-4"
               onClick={() => setImpostazioniAperte(false)}>
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col sm:flex-row overflow-hidden" style={{ minHeight: '340px' }} onClick={e => e.stopPropagation()}>
+              <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col sm:flex-row overflow-hidden" style={{ minHeight: '340px' }} onClick={e => e.stopPropagation()}>
 
                 {/* Menu categorie */}
-                <div className="sm:w-44 shrink-0 bg-slate-50 border-b sm:border-b-0 sm:border-r border-slate-100 p-3 flex sm:flex-col gap-1 overflow-x-auto">
-                  <h2 className="hidden sm:block text-xs font-semibold uppercase tracking-wide text-slate-400 px-2 mb-1">Impostazioni</h2>
+                <div className="sm:w-44 shrink-0 bg-slate-50 dark:bg-slate-950 border-b sm:border-b-0 sm:border-r border-slate-100 dark:border-slate-800 p-3 flex sm:flex-col gap-1 overflow-x-auto">
+                  <h2 className="hidden sm:block text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 px-2 mb-1">Impostazioni</h2>
                   <button onClick={() => setSezioneImpostazioni('account')}
-                    className={'text-left px-3 py-2 rounded-lg text-sm whitespace-nowrap ' + (sezioneImpostazioni === 'account' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100')}>
+                    className={'text-left px-3 py-2 rounded-lg text-sm whitespace-nowrap ' + (sezioneImpostazioni === 'account' ? 'bg-slate-900 text-white' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700')}>
                     Account
                   </button>
                   <button onClick={() => setSezioneImpostazioni('mappe')}
-                    className={'text-left px-3 py-2 rounded-lg text-sm whitespace-nowrap ' + (sezioneImpostazioni === 'mappe' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100')}>
+                    className={'text-left px-3 py-2 rounded-lg text-sm whitespace-nowrap ' + (sezioneImpostazioni === 'mappe' ? 'bg-slate-900 text-white' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700')}>
                     Mappe
+                  </button>
+                  <button onClick={() => setSezioneImpostazioni('aspetto')}
+                    className={'text-left px-3 py-2 rounded-lg text-sm whitespace-nowrap ' + (sezioneImpostazioni === 'aspetto' ? 'bg-slate-900 text-white' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700')}>
+                    Aspetto
                   </button>
                 </div>
 
                 {/* Contenuto della categoria scelta */}
                 <div className="flex-1 p-6 relative overflow-y-auto">
                   <button onClick={() => setImpostazioniAperte(false)}
-                    className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100">
+                    className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="18" y1="6" x2="6" y2="18"></line>
                       <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -1275,43 +1318,43 @@ function App({ session }) {
                   {sezioneImpostazioni === 'account' && (
                     <div className="space-y-5">
                       <div>
-                        <h3 className="text-sm font-semibold text-slate-800 mb-3">Account</h3>
-                        <p className="text-sm text-slate-500">Collegato come <span className="text-slate-700">{session.user.email}</span></p>
+                        <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-3">Account</h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Collegato come <span className="text-slate-700 dark:text-slate-300">{session.user.email}</span></p>
                       </div>
 
                       {sonoAdmin && (
-                        <div className="space-y-4 pt-4 border-t border-slate-100">
-                          <p className="text-sm font-medium text-slate-700">Accessi ufficio</p>
-                          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                            <p className="text-xs font-medium text-slate-600 mb-3">Aggiungi un accesso</p>
+                        <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Accessi ufficio</p>
+                          <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+                            <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-3">Aggiungi un accesso</p>
                             <form onSubmit={creaUtente} className="space-y-3">
                               <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                  <label className="text-xs text-slate-500 mb-1 block">Nome utente</label>
+                                  <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Nome utente</label>
                                   <input value={nuovoUsername} onChange={e => setNuovoUsername(e.target.value)}
-                                    placeholder="es. yuri" className="w-full border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
+                                    placeholder="es. yuri" className="w-full border border-slate-200 dark:border-slate-700 rounded-[10px] px-3 py-2 text-sm" />
                                 </div>
                                 <div>
-                                  <label className="text-xs text-slate-500 mb-1 block">Nome da mostrare (facoltativo)</label>
+                                  <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Nome da mostrare (facoltativo)</label>
                                   <input value={nuovoNome} onChange={e => setNuovoNome(e.target.value)}
-                                    placeholder="es. Yuri" className="w-full border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
+                                    placeholder="es. Yuri" className="w-full border border-slate-200 dark:border-slate-700 rounded-[10px] px-3 py-2 text-sm" />
                                 </div>
                               </div>
                               <div>
-                                <label className="text-xs text-slate-500 mb-1 block">Email</label>
+                                <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Email</label>
                                 <input type="email" value={nuovoEmail} onChange={e => setNuovoEmail(e.target.value)}
-                                  placeholder="email@esempio.it" className="w-full border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
+                                  placeholder="email@esempio.it" className="w-full border border-slate-200 dark:border-slate-700 rounded-[10px] px-3 py-2 text-sm" />
                               </div>
                               <div>
-                                <label className="text-xs text-slate-500 mb-1 block">Password iniziale</label>
+                                <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Password iniziale</label>
                                 <input type="text" value={nuovoPassword} onChange={e => setNuovoPassword(e.target.value)}
-                                  placeholder="da comunicare alla persona" className="w-full border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
+                                  placeholder="da comunicare alla persona" className="w-full border border-slate-200 dark:border-slate-700 rounded-[10px] px-3 py-2 text-sm" />
                               </div>
-                              <label className="flex items-center gap-2 text-sm text-slate-700">
+                              <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
                                 <input type="checkbox" checked={nuovoAdmin} onChange={e => setNuovoAdmin(e.target.checked)} />
                                 Rendi anche lui/lei amministratore (potrà gestire gli accessi come te)
                               </label>
-                              {utentiMsg && <p className="text-xs text-slate-600">{utentiMsg}</p>}
+                              {utentiMsg && <p className="text-xs text-slate-600 dark:text-slate-400">{utentiMsg}</p>}
                               <button type="submit" disabled={utentiCaricando}
                                 className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm hover:bg-slate-800 disabled:opacity-50">
                                 {utentiCaricando ? 'Creazione...' : 'Crea accesso'}
@@ -1319,26 +1362,26 @@ function App({ session }) {
                             </form>
                           </div>
 
-                          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                            <p className="text-xs font-medium text-slate-600 mb-3">Accessi esistenti</p>
+                          <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+                            <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-3">Accessi esistenti</p>
                             <div className="space-y-2">
                               {elencoUtenti.map(u => (
-                                <div key={u.username} className="flex items-center justify-between gap-3 border border-slate-200 bg-white rounded-lg px-3 py-2">
+                                <div key={u.username} className="flex items-center justify-between gap-3 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg px-3 py-2">
                                   <div className="min-w-0">
-                                    <p className="text-sm text-slate-900 truncate">
-                                      {u.nome_visualizzato || u.username} <span className="text-slate-400">({u.username})</span>
+                                    <p className="text-sm text-slate-900 dark:text-slate-100 truncate">
+                                      {u.nome_visualizzato || u.username} <span className="text-slate-400 dark:text-slate-500">({u.username})</span>
                                     </p>
-                                    <p className="text-xs text-slate-400 truncate">
+                                    <p className="text-xs text-slate-400 dark:text-slate-500 truncate">
                                       {u.email}{u.amministratore ? ' · amministratore' : ''}
                                     </p>
                                   </div>
                                   <button onClick={() => eliminaUtente(u.username)}
-                                    className="shrink-0 px-2.5 py-1 rounded-lg border border-red-200 text-xs text-red-600 hover:border-red-400">
+                                    className="shrink-0 px-2.5 py-1 rounded-lg border border-red-200 dark:border-red-800 text-xs text-red-600 dark:text-red-400 hover:border-red-400">
                                     Elimina
                                   </button>
                                 </div>
                               ))}
-                              {elencoUtenti.length === 0 && <p className="text-sm text-slate-400">Nessun accesso trovato.</p>}
+                              {elencoUtenti.length === 0 && <p className="text-sm text-slate-400 dark:text-slate-500">Nessun accesso trovato.</p>}
                             </div>
                           </div>
                         </div>
@@ -1348,19 +1391,40 @@ function App({ session }) {
 
                   {sezioneImpostazioni === 'mappe' && (
                     <div>
-                      <h3 className="text-sm font-semibold text-slate-800 mb-3">Mappe</h3>
-                      <label className="text-sm font-medium text-slate-700 mb-2 block">Chiave Google Maps</label>
+                      <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-3">Mappe</h3>
+                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">Chiave Google Maps</label>
                       <div className="flex gap-2">
                         <input type="password" value={gmapsKey} onChange={e => setGmapsKey(e.target.value)}
                           placeholder="Incolla qui la chiave API"
-                          className="flex-1 border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
+                          className="flex-1 border border-slate-200 dark:border-slate-700 rounded-[10px] px-3 py-2 text-sm" />
                         <button onClick={salvaChiave} disabled={!gmapsKey.trim()}
                           className={'px-3 py-2 rounded-lg text-sm shrink-0 ' + (keySalvata ? 'bg-green-600 text-white' : 'bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-40')}>
                           {keySalvata ? 'Salvata' : 'Salva'}
                         </button>
                       </div>
-                      <p className="text-xs text-slate-500 mt-2">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
                         Precompilata in automatico su ogni dispositivo. Cambiala solo se serve una chiave diversa da quella dell'ufficio.
+                      </p>
+                    </div>
+                  )}
+
+                  {sezioneImpostazioni === 'aspetto' && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-3">Aspetto</h3>
+                      <div className="flex gap-2">
+                        {[
+                          { id: 'chiaro', label: 'Chiaro' },
+                          { id: 'scuro', label: 'Scuro' },
+                          { id: 'sistema', label: 'Sistema' },
+                        ].map(opt => (
+                          <button key={opt.id} onClick={() => impostaTema(opt.id)}
+                            className={'px-3 py-2 rounded-lg text-sm border ' + (tema === opt.id ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-400 dark:hover:border-slate-500')}>
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-3">
+                        "Sistema" segue in automatico il tema del computer o telefono che stai usando.
                       </p>
                     </div>
                   )}
@@ -1368,20 +1432,20 @@ function App({ session }) {
               </div>
             </div>
           )}
-          <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 w-fit">
+          <div className="flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1 w-fit">
             <button onClick={() => setVista('nuovo')}
-              className={'px-3 py-1.5 rounded-lg text-sm ' + (vista === 'nuovo' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900')}>
+              className={'px-3 py-1.5 rounded-lg text-sm ' + (vista === 'nuovo' ? 'bg-slate-900 text-white' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100')}>
               Preventivo
             </button>
             <button onClick={() => setVista('storico')}
-              className={'px-3 py-1.5 rounded-lg text-sm flex items-center gap-1.5 ' + (vista === 'storico' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900')}>
+              className={'px-3 py-1.5 rounded-lg text-sm flex items-center gap-1.5 ' + (vista === 'storico' ? 'bg-slate-900 text-white' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100')}>
               Storico
               {storico.length > 0 && (
-                <span className={'text-xs px-1.5 rounded-full ' + (vista === 'storico' ? 'bg-white/20' : 'bg-slate-100')}>{storico.length}</span>
+                <span className={'text-xs px-1.5 rounded-full ' + (vista === 'storico' ? 'bg-white/20' : 'bg-slate-100 dark:bg-slate-700')}>{storico.length}</span>
               )}
             </button>
             <button onClick={() => setVista('analitiche')}
-              className={'px-3 py-1.5 rounded-lg text-sm ' + (vista === 'analitiche' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900')}>
+              className={'px-3 py-1.5 rounded-lg text-sm ' + (vista === 'analitiche' ? 'bg-slate-900 text-white' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100')}>
               Analitiche
             </button>
           </div>
@@ -1390,11 +1454,11 @@ function App({ session }) {
         {vista === 'storico' && (
           <div className="space-y-3">
             {storico.length > 0 && !backupOggi && (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center gap-3">
+              <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-xl p-3 flex items-center gap-3">
                 <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0"></span>
-                <span className="text-sm text-amber-800 flex-1">
+                <span className="text-sm text-amber-800 dark:text-amber-300 flex-1">
                   Non hai ancora fatto il backup oggi.
-                  {ultimoBackup && <span className="text-amber-600"> Ultimo: {dataIt(ultimoBackup)}.</span>}
+                  {ultimoBackup && <span className="text-amber-600 dark:text-amber-400"> Ultimo: {dataIt(ultimoBackup)}.</span>}
                 </span>
                 <button onClick={esportaTutto}
                   className="px-3 py-1.5 rounded-lg bg-amber-500 text-white text-xs font-medium hover:bg-amber-600 shrink-0">
@@ -1403,35 +1467,35 @@ function App({ session }) {
               </div>
             )}
             {storico.length > 0 && backupOggi && (
-              <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center gap-3">
+              <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-xl p-3 flex items-center gap-3">
                 <span className="w-2 h-2 rounded-full bg-green-500 shrink-0"></span>
-                <span className="text-sm text-green-800">Backup di oggi gia fatto.</span>
+                <span className="text-sm text-green-800 dark:text-green-300">Backup di oggi gia fatto.</span>
               </div>
             )}
 
-            <div className="bg-white border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-2">
-              <span className="text-xs text-slate-500 mr-1">Copia di sicurezza:</span>
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 flex flex-wrap items-center gap-2">
+              <span className="text-xs text-slate-500 dark:text-slate-400 mr-1">Copia di sicurezza:</span>
               <button onClick={esportaTutto}
-                className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 hover:border-slate-500">
+                className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 dark:text-slate-300 hover:border-slate-500">
                 Esporta tutto
               </button>
-              <label className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 hover:border-slate-500 cursor-pointer">
+              <label className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 dark:text-slate-300 hover:border-slate-500 cursor-pointer">
                 Importa da file
                 <input type="file" accept="application/json,.json" className="hidden"
                   onChange={e => { if (e.target.files[0]) { importaTutto(e.target.files[0]); e.target.value = ''; } }} />
               </label>
-              <span className="text-xs text-slate-400 ml-auto">Sposta il file su OneDrive e sovrascrivi quello del giorno prima: e sempre lo stesso nome.</span>
+              <span className="text-xs text-slate-400 dark:text-slate-500 ml-auto">Sposta il file su OneDrive e sovrascrivi quello del giorno prima: e sempre lo stesso nome.</span>
             </div>
 
             {storico.length > 0 && (
-              <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-3">
-                <div className="flex items-center gap-2 border border-slate-200 rounded-lg px-3 py-2 focus-within:border-slate-900 transition-colors">
-                  <span className="text-slate-400 text-sm">&#128269;</span>
+              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-3">
+                <div className="flex items-center gap-2 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 focus-within:border-slate-900 transition-colors">
+                  <span className="text-slate-400 dark:text-slate-500 text-sm">&#128269;</span>
                   <input value={cercaStorico} onChange={e => setCercaStorico(e.target.value)}
                     placeholder="Cerca per cliente o destinazione..."
                     className="flex-1 text-sm outline-none bg-transparent" />
                   {cercaStorico && (
-                    <button onClick={() => setCercaStorico('')} className="text-slate-400 hover:text-slate-700 text-sm">&times;</button>
+                    <button onClick={() => setCercaStorico('')} className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 text-sm">&times;</button>
                   )}
                 </div>
 
@@ -1444,17 +1508,17 @@ function App({ session }) {
                   ].map(f => (
                     <button key={f.id} onClick={() => setFiltroStato(f.id)}
                       className={'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs ' +
-                        (filtroStato === f.id ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 text-slate-600 hover:border-slate-400')}>
+                        (filtroStato === f.id ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-400 dark:hover:border-slate-500')}>
                       {f.colore && <span className={'w-2 h-2 rounded-full ' + f.colore}></span>}
                       {f.label}
-                      <span className={'text-xs ' + (filtroStato === f.id ? 'text-white/60' : 'text-slate-400')}>
+                      <span className={'text-xs ' + (filtroStato === f.id ? 'text-white/60' : 'text-slate-400 dark:text-slate-500')}>
                         {conteggi[f.id]}
                       </span>
                     </button>
                   ))}
 
                   <select value={ordine} onChange={e => setOrdine(e.target.value)}
-                    className="ml-auto border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-600 bg-white outline-none focus:border-slate-900">
+                    className="ml-auto border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-800 outline-none focus:border-slate-900">
                     <option value="recenti">Dal piu recente</option>
                     <option value="vecchi">Dal piu vecchio</option>
                     <option value="importo">Importo piu alto</option>
@@ -1465,17 +1529,17 @@ function App({ session }) {
             )}
 
             {storico.length > 0 && storicoFiltrato.length === 0 && (
-              <div className="bg-white border border-slate-200 rounded-xl p-6 text-center">
-                <p className="text-sm text-slate-500">Nessun preventivo trovato con questi filtri.</p>
+              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 text-center">
+                <p className="text-sm text-slate-500 dark:text-slate-400">Nessun preventivo trovato con questi filtri.</p>
                 <button onClick={() => { setFiltroStato('tutti'); setCercaStorico(''); }}
-                  className="text-sm text-slate-900 underline mt-2">Azzera i filtri</button>
+                  className="text-sm text-slate-900 dark:text-slate-100 underline mt-2">Azzera i filtri</button>
               </div>
             )}
 
             {storico.length === 0 && (
-              <div className="bg-white border border-slate-200 rounded-xl p-8 text-center">
-                <p className="text-sm text-slate-500">Nessun preventivo salvato.</p>
-                <button onClick={() => setVista('nuovo')} className="text-sm text-slate-900 underline mt-2">Creane uno</button>
+              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-8 text-center">
+                <p className="text-sm text-slate-500 dark:text-slate-400">Nessun preventivo salvato.</p>
+                <button onClick={() => setVista('nuovo')} className="text-sm text-slate-900 dark:text-slate-100 underline mt-2">Creane uno</button>
               </div>
             )}
 
@@ -1483,29 +1547,29 @@ function App({ session }) {
               const st = STATI[p.stato] || STATI.inviato;
               const aperto = apertoId === p.id;
               return (
-                <div key={p.id} className={'bg-white border rounded-xl overflow-hidden ' + st.bordo}>
+                <div key={p.id} className={'bg-white dark:bg-slate-800 border rounded-xl overflow-hidden ' + st.bordo}>
                   <button onClick={() => setApertoId(aperto ? null : p.id)}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50">
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-700">
                     <span className={'w-3 h-3 rounded-full shrink-0 ' + st.colore}></span>
                     <span className="min-w-0 flex-1">
-                      <span className={'block text-sm font-medium truncate ' + (p.stato === 'svolto' ? 'line-through text-slate-400' : 'text-slate-900')}>
+                      <span className={'block text-sm font-medium truncate ' + (p.stato === 'svolto' ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-900 dark:text-slate-100')}>
                         {p.cliente}
                       </span>
-                      <span className="block text-xs text-slate-400">
+                      <span className="block text-xs text-slate-400 dark:text-slate-500">
                         {dataIt(p.dataCreazione)} &middot; {(p.righe || []).length} servizi &middot; {st.label}
                       </span>
                     </span>
-                    <span className={'shrink-0 text-sm font-medium tabular-nums ' + (p.stato === 'svolto' ? 'line-through text-slate-400' : 'text-slate-900')}>
+                    <span className={'shrink-0 text-sm font-medium tabular-nums ' + (p.stato === 'svolto' ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-900 dark:text-slate-100')}>
                       &euro; {fmt(p.totale)}
                     </span>
                     <span className="shrink-0 text-slate-300 text-xs">{aperto ? '\u25B2' : '\u25BC'}</span>
                   </button>
 
                   {aperto && (
-                    <div className="border-t border-slate-100 p-4 space-y-4 bg-slate-50/50">
+                    <div className="border-t border-slate-100 dark:border-slate-800 p-4 space-y-4 bg-slate-50/50">
                       <div className="space-y-1">
                         {(p.righe || []).map((r, i) => (
-                          <div key={i} className="flex justify-between gap-3 text-xs text-slate-600">
+                          <div key={i} className="flex justify-between gap-3 text-xs text-slate-600 dark:text-slate-400">
                             <span className="truncate">{r.data || r.descrizione || ('Servizio ' + (i+1))}</span>
                             <span className="shrink-0 tabular-nums">&euro; {fmt(r.prezzo || 0)}</span>
                           </div>
@@ -1513,10 +1577,10 @@ function App({ session }) {
                       </div>
 
                       {(p.vociExtra || []).length > 0 && (
-                        <div className="space-y-1 pt-2 border-t border-slate-200">
-                          <p className="text-xs text-slate-400 uppercase tracking-wide">Non include</p>
+                        <div className="space-y-1 pt-2 border-t border-slate-200 dark:border-slate-700">
+                          <p className="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">Non include</p>
                           {p.vociExtra.map((v, i) => (
-                            <div key={i} className="flex justify-between gap-3 text-xs text-slate-500">
+                            <div key={i} className="flex justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
                               <span className="truncate">{v.label}</span>
                               <span className="shrink-0 tabular-nums">&euro; {fmt(v.importo || 0)}</span>
                             </div>
@@ -1524,12 +1588,12 @@ function App({ session }) {
                         </div>
                       )}
 
-                      <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200">
-                        <span className="text-xs text-slate-500 mr-1">Stato:</span>
+                      <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                        <span className="text-xs text-slate-500 dark:text-slate-400 mr-1">Stato:</span>
                         {Object.keys(STATI).map(k => (
                           <button key={k} onClick={() => cambiaStato(p.id, k)}
                             className={'flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs ' +
-                              (p.stato === k ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 text-slate-600 hover:border-slate-400')}>
+                              (p.stato === k ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-400 dark:hover:border-slate-500')}>
                             <span className={'w-2 h-2 rounded-full ' + STATI[k].colore}></span>
                             {STATI[k].label}
                           </button>
@@ -1538,15 +1602,15 @@ function App({ session }) {
 
                       <div className="flex flex-wrap gap-2">
                         <button onClick={() => riapriPreventivo(p)}
-                          className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 hover:border-slate-500">
+                          className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 dark:text-slate-300 hover:border-slate-500">
                           Apri e modifica
                         </button>
                         <button onClick={() => { navigator.clipboard && navigator.clipboard.writeText(p.testo || ''); }}
-                          className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 hover:border-slate-500">
+                          className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 dark:text-slate-300 hover:border-slate-500">
                           Copia testo
                         </button>
                         <button onClick={() => { if (confirm('Eliminare il preventivo di ' + p.cliente + '?')) eliminaPreventivo(p.id); }}
-                          className="px-3 py-1.5 rounded-lg border border-red-200 text-xs text-red-600 hover:border-red-400 ml-auto">
+                          className="px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-800 text-xs text-red-600 dark:text-red-400 hover:border-red-400 ml-auto">
                           Elimina
                         </button>
                       </div>
@@ -1560,7 +1624,7 @@ function App({ session }) {
 
         {vista === 'analitiche' && (
           <div className="space-y-4">
-            <div className="bg-white border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-2">
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 flex flex-wrap items-center gap-2">
               {[
                 { id: '7', label: '7 giorni' },
                 { id: '30', label: '30 giorni' },
@@ -1568,27 +1632,27 @@ function App({ session }) {
               ].map(p => (
                 <button key={p.id} onClick={() => setPeriodoPreset(p.id)}
                   className={'px-3 py-1.5 rounded-lg border text-xs ' +
-                    (periodoPreset === p.id ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 text-slate-600 hover:border-slate-400')}>
+                    (periodoPreset === p.id ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-400 dark:hover:border-slate-500')}>
                   {p.label}
                 </button>
               ))}
-              <div className="flex items-center gap-1.5 border-l border-slate-200 pl-2 ml-1">
+              <div className="flex items-center gap-1.5 border-l border-slate-200 dark:border-slate-700 pl-2 ml-1">
                 <input type="date" value={dataInizioCustom}
                   onChange={e => { setDataInizioCustom(e.target.value); setPeriodoPreset('custom'); }}
-                  className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
-                <span className="text-xs text-slate-400">-</span>
+                  className="border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs" />
+                <span className="text-xs text-slate-400 dark:text-slate-500">-</span>
                 <input type="date" value={dataFineCustom}
                   onChange={e => { setDataFineCustom(e.target.value); setPeriodoPreset('custom'); }}
-                  className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+                  className="border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs" />
               </div>
               <button onClick={() => setVistaTabellaAnalitiche(v => !v)}
-                className="ml-auto px-3 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-600 hover:border-slate-400">
+                className="ml-auto px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-400 hover:border-slate-400 dark:hover:border-slate-500">
                 {vistaTabellaAnalitiche ? 'Vedi grafico' : 'Vedi come tabella'}
               </button>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-2">
-              <span className="text-xs text-slate-500 mr-1">Stato:</span>
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 flex flex-wrap items-center gap-2">
+              <span className="text-xs text-slate-500 dark:text-slate-400 mr-1">Stato:</span>
               {[
                 { id: 'tutti', label: 'Tutti', colore: '' },
                 { id: 'inviato', label: 'Inviato', colore: 'bg-amber-400' },
@@ -1597,19 +1661,19 @@ function App({ session }) {
               ].map(f => (
                 <button key={f.id} onClick={() => setFiltroStatoAnalitiche(f.id)}
                   className={'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs ' +
-                    (filtroStatoAnalitiche === f.id ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 text-slate-600 hover:border-slate-400')}>
+                    (filtroStatoAnalitiche === f.id ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-400 dark:hover:border-slate-500')}>
                   {f.colore && <span className={'w-2 h-2 rounded-full ' + f.colore}></span>}
                   {f.label}
                 </button>
               ))}
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-xl p-5">
-              <p className="text-xs uppercase tracking-widest text-slate-400 mb-1">
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5">
+              <p className="text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">
                 Valore totale{filtroStatoAnalitiche !== 'tutti' ? ' (' + filtroStatoAnalitiche + ')' : ' preventivato'} nel periodo
               </p>
-              <p className="text-3xl font-serif text-slate-900">&euro; {fmt(analTotale)}</p>
-              <p className="text-xs text-slate-400 mt-1">{analCount} preventivi creati in questo periodo</p>
+              <p className="text-3xl font-serif text-slate-900 dark:text-slate-100">&euro; {fmt(analTotale)}</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{analCount} preventivi creati in questo periodo</p>
 
               {!vistaTabellaAnalitiche ? (
                 <div className="mt-5">
@@ -1618,12 +1682,12 @@ function App({ session }) {
               ) : (
                 <div className="mt-4 max-h-80 overflow-y-auto space-y-1">
                   {analPunti.filter(p => p.valore > 0).map(p => (
-                    <div key={p.data} className="flex justify-between text-xs text-slate-600 border-b border-slate-100 py-1">
+                    <div key={p.data} className="flex justify-between text-xs text-slate-600 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800 py-1">
                       <span>{new Date(p.data + 'T00:00:00').toLocaleDateString('it-IT')}</span>
                       <span className="tabular-nums">&euro; {fmt(p.valore)}</span>
                     </div>
                   ))}
-                  {analPunti.every(p => p.valore === 0) && <p className="text-sm text-slate-400">Nessun preventivo nel periodo.</p>}
+                  {analPunti.every(p => p.valore === 0) && <p className="text-sm text-slate-400 dark:text-slate-500">Nessun preventivo nel periodo.</p>}
                 </div>
               )}
             </div>
@@ -1637,112 +1701,112 @@ function App({ session }) {
           <div className="lg:col-span-3 space-y-5">
 
             {/* CLIENTE */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
               <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-medium text-slate-700">Cliente</label>
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Cliente</label>
                 <button onClick={salvaCliente} disabled={!clienteNome.trim()}
-                  className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 hover:border-slate-500 disabled:opacity-40">
+                  className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 dark:text-slate-300 hover:border-slate-500 disabled:opacity-40">
                   Salva cliente
                 </button>
               </div>
               <input list="clienti-list" value={clienteNome} onChange={e => setClienteNome(e.target.value)}
                 placeholder="Nome cliente o azienda"
-                className="w-full border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
+                className="w-full border border-slate-200 dark:border-slate-700 rounded-[10px] px-3 py-2 text-sm" />
               <datalist id="clienti-list">{clientiNoti.map(c => <option key={c} value={c} />)}</datalist>
-              {clienteMessage && <p className="text-xs text-green-700 mt-2">{clienteMessage}</p>}
+              {clienteMessage && <p className="text-xs text-green-700 dark:text-green-400 mt-2">{clienteMessage}</p>}
             </div>
 
             {/* EMAIL LIBERA */}
-            <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-3">
-              <label className="text-sm font-medium text-slate-700 block">Incolla qui il testo dell'email del cliente</label>
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 space-y-3">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300 block">Incolla qui il testo dell'email del cliente</label>
               <textarea value={emailText} onChange={e => setEmailText(e.target.value)}
                 placeholder={'Es.\n1 giorno: transfer da Fiumicino a hotel Roma\n2 giorno: Roma - Modena e rientro\n3 giorno: transfer hotel - Fiumicino'}
                 rows={5}
-                className="w-full border border-slate-200 rounded-[10px] px-3 py-2 text-sm bg-white" />
+                className="w-full border border-slate-200 dark:border-slate-700 rounded-[10px] px-3 py-2 text-sm bg-white dark:bg-slate-800" />
               <div className="flex items-center gap-3">
                 <button onClick={interpretaEmail} disabled={!emailText.trim() || aiStatus === 'loading'}
                   className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm hover:bg-slate-800 disabled:opacity-40">
                   {aiStatus === 'loading' ? 'Sto leggendo...' : 'Crea le righe con IA'}
                 </button>
-                {aiStatus === 'success' && <span className="text-xs text-green-700">Fatto</span>}
+                {aiStatus === 'success' && <span className="text-xs text-green-700 dark:text-green-400">Fatto</span>}
               </div>
               {aiNote && (
-                <div className={'text-xs rounded-lg p-3 border ' + (aiStatus === 'error' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-amber-50 border-amber-200 text-amber-800')}>
+                <div className={'text-xs rounded-lg p-3 border ' + (aiStatus === 'error' ? 'bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800 text-red-700 dark:text-red-400' : 'bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300')}>
                   {aiNote}
                 </div>
               )}
             </div>
 
             {/* INTESTAZIONE */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
               <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-medium text-slate-700">Intestazione mezzo</label>
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Intestazione mezzo</label>
                 {intestazioneManuale && (
                   <button onClick={() => setIntestazioneManuale(false)}
-                    className="text-xs text-slate-500 hover:text-slate-900 underline">
+                    className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 underline">
                     Torna automatico (da passeggeri/bagagli)
                   </button>
                 )}
               </div>
               <input value={intestazioneMezzo}
                 onChange={e => { setIntestazioneMezzo(e.target.value); setIntestazioneManuale(true); }}
-                className="w-full border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
+                className="w-full border border-slate-200 dark:border-slate-700 rounded-[10px] px-3 py-2 text-sm" />
               {!intestazioneManuale && (
-                <p className="text-xs text-slate-400 mt-1.5">Scelto in automatico in base a passeggeri e bagagli della prima riga.</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5">Scelto in automatico in base a passeggeri e bagagli della prima riga.</p>
               )}
             </div>
 
             {/* RIGHE */}
             {righeCalcolate.map(({ riga, calc, prezzo, utile }, idx) => (
-              <div key={riga.id} className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+              <div key={riga.id} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 space-y-4">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-2 text-sm font-medium text-slate-900">
+                  <div className="flex items-center gap-2 text-sm font-medium text-slate-900 dark:text-slate-100">
                     <span className="w-[22px] h-[22px] rounded-full bg-slate-800 text-white text-[11px] font-medium flex items-center justify-center">{idx+1}</span>
                     {TIPI_RIGA.find(t => t.id === riga.tipo).label}
                   </div>
-                  {righe.length > 1 && <button onClick={() => rimuoviRiga(riga.id)} className="text-slate-400 hover:text-red-600 text-sm">Elimina</button>}
+                  {righe.length > 1 && <button onClick={() => rimuoviRiga(riga.id)} className="text-slate-400 dark:text-slate-500 hover:text-red-600 text-sm">Elimina</button>}
                 </div>
 
                 <select value={riga.tipo} onChange={e => aggiornaRiga(riga.id, { tipo: e.target.value })}
-                  className="w-full border border-slate-200 rounded-[10px] px-3 py-2 text-sm bg-white">
+                  className="w-full border border-slate-200 dark:border-slate-700 rounded-[10px] px-3 py-2 text-sm bg-white dark:bg-slate-800">
                   {TIPI_RIGA.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                 </select>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-slate-500 mb-1 block">Data / giorno</label>
+                    <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Data / giorno</label>
                     <input value={riga.data} onChange={e => aggiornaRiga(riga.id, { data: e.target.value })}
-                      placeholder="es. 23/10" className="w-full border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
+                      placeholder="es. 23/10" className="w-full border border-slate-200 dark:border-slate-700 rounded-[10px] px-3 py-2 text-sm" />
                   </div>
                   <div>
-                    <label className="text-xs text-slate-500 mb-1 block">Passeggeri</label>
+                    <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Passeggeri</label>
                     <input type="number" value={riga.pax} onChange={e => aggiornaRiga(riga.id, { pax: Number(e.target.value) })}
-                      className="w-full border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
+                      className="w-full border border-slate-200 dark:border-slate-700 rounded-[10px] px-3 py-2 text-sm" />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-slate-500 mb-1 block">Ora partenza</label>
+                    <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Ora partenza</label>
                     <input type="time" value={riga.oraPartenza} onChange={e => aggiornaRiga(riga.id, { oraPartenza: e.target.value })}
-                      className="w-full border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
+                      className="w-full border border-slate-200 dark:border-slate-700 rounded-[10px] px-3 py-2 text-sm" />
                   </div>
                   <div>
-                    <label className="text-xs text-slate-500 mb-1 block">Ora rientro</label>
+                    <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Ora rientro</label>
                     <input type="time" value={riga.oraRientro} onChange={e => aggiornaRiga(riga.id, { oraRientro: e.target.value })}
-                      className="w-full border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
+                      className="w-full border border-slate-200 dark:border-slate-700 rounded-[10px] px-3 py-2 text-sm" />
                   </div>
                 </div>
 
                 <div>
-                  <label className="text-xs text-slate-500 mb-1 block">Descrizione</label>
+                  <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Descrizione</label>
                   <input value={riga.descrizione} onChange={e => aggiornaRiga(riga.id, { descrizione: e.target.value })}
                     placeholder="es. Roma FCO - Assisi e pernotto"
-                    className="w-full border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
+                    className="w-full border border-slate-200 dark:border-slate-700 rounded-[10px] px-3 py-2 text-sm" />
                 </div>
 
                 {(riga.tipo === 'fcoArrivo' || riga.tipo === 'fcoPartenza' || riga.tipo === 'civitavecchia') && (
-                  <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
                     <input type="checkbox" checked={riga.bagagli} onChange={e => aggiornaRiga(riga.id, { bagagli: e.target.checked })} />
                     Con bagagli
                   </label>
@@ -1750,11 +1814,11 @@ function App({ session }) {
 
                 {riga.tipo === 'romaFissa' && (
                   <div>
-                    <label className="text-xs text-slate-500 mb-1 block">Ore di disposizione</label>
+                    <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Ore di disposizione</label>
                     <div className="flex gap-2">
                       {['8-9','10-11','12'].map(o => (
                         <button key={o} onClick={() => aggiornaRiga(riga.id, { oreRoma: o })}
-                          className={'px-3 py-1.5 rounded-lg border text-sm ' + (riga.oreRoma === o ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 text-slate-700')}>
+                          className={'px-3 py-1.5 rounded-lg border text-sm ' + (riga.oreRoma === o ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300')}>
                           {o} ore
                         </button>
                       ))}
@@ -1766,37 +1830,37 @@ function App({ session }) {
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-xs text-slate-500 mb-1 block">Da</label>
+                        <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Da</label>
                         <input value={riga.partenza} onChange={e => aggiornaRiga(riga.id, { partenza: e.target.value })}
                           onBlur={() => cercaPercorsoNoto(riga)}
                           placeholder="Via Ostiense 917, Roma"
-                          className="w-full border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
+                          className="w-full border border-slate-200 dark:border-slate-700 rounded-[10px] px-3 py-2 text-sm" />
                       </div>
                       <div>
-                        <label className="text-xs text-slate-500 mb-1 block">A</label>
+                        <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">A</label>
                         <input value={riga.arrivo} onChange={e => aggiornaRiga(riga.id, { arrivo: e.target.value })}
                           onBlur={() => cercaPercorsoNoto(riga)}
                           placeholder="Assisi"
-                          className="w-full border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
+                          className="w-full border border-slate-200 dark:border-slate-700 rounded-[10px] px-3 py-2 text-sm" />
                       </div>
                     </div>
 
                     {(riga.tappe || []).length > 0 && (
-                      <div className="space-y-1.5 pl-3 border-l-2 border-slate-200">
-                        <p className="text-xs text-slate-400">Tappe intermedie, in ordine</p>
+                      <div className="space-y-1.5 pl-3 border-l-2 border-slate-200 dark:border-slate-700">
+                        <p className="text-xs text-slate-400 dark:text-slate-500">Tappe intermedie, in ordine</p>
                         {riga.tappe.map((t, ti) => (
                           <div key={t.id} className="flex items-center gap-1.5">
-                            <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-500 text-xs flex items-center justify-center shrink-0">{ti+1}</span>
+                            <span className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 text-xs flex items-center justify-center shrink-0">{ti+1}</span>
                             <input value={t.luogo}
                               onChange={e => aggiornaTappa(riga.id, t.id, e.target.value)}
                               placeholder="es. Colosseo, Roma"
-                              className="flex-1 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm" />
+                              className="flex-1 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-sm" />
                             <button onClick={() => spostaTappa(riga.id, t.id, -1)} disabled={ti === 0}
                               title="Sposta su"
-                              className="w-6 h-6 rounded text-slate-300 hover:text-slate-700 disabled:opacity-20 text-xs">&#9650;</button>
+                              className="w-6 h-6 rounded text-slate-300 hover:text-slate-700 dark:hover:text-slate-300 disabled:opacity-20 text-xs">&#9650;</button>
                             <button onClick={() => spostaTappa(riga.id, t.id, 1)} disabled={ti === riga.tappe.length - 1}
                               title="Sposta giu"
-                              className="w-6 h-6 rounded text-slate-300 hover:text-slate-700 disabled:opacity-20 text-xs">&#9660;</button>
+                              className="w-6 h-6 rounded text-slate-300 hover:text-slate-700 dark:hover:text-slate-300 disabled:opacity-20 text-xs">&#9660;</button>
                             <button onClick={() => rimuoviTappa(riga.id, t.id)} title="Rimuovi tappa"
                               className="w-6 h-6 rounded text-slate-300 hover:text-red-600 text-sm">&times;</button>
                           </div>
@@ -1805,7 +1869,7 @@ function App({ session }) {
                     )}
 
                     <button onClick={() => aggiungiTappa(riga.id)}
-                      className="text-xs text-slate-500 hover:text-slate-900 underline">
+                      className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 underline">
                       + Aggiungi tappa
                     </button>
 
@@ -1815,37 +1879,37 @@ function App({ session }) {
                         Calcola km con Google
                       </button>
                       <button onClick={() => salvaPercorso(riga)} disabled={!riga.km}
-                        className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 hover:border-slate-500 disabled:opacity-40">
+                        className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 dark:text-slate-300 hover:border-slate-500 disabled:opacity-40">
                         Salva percorso
                       </button>
                       <a href={'https://www.google.com/maps/dir/?api=1&origin=' + encodeURIComponent(riga.partenza) + '&destination=' + encodeURIComponent(riga.arrivo) + ((riga.tappe || []).filter(t => t.luogo.trim()).length ? '&waypoints=' + riga.tappe.filter(t => t.luogo.trim()).map(t => encodeURIComponent(t.luogo.trim())).join('%7C') : '')}
                         target="_blank" rel="noopener"
-                        className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 hover:border-slate-500">
+                        className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 dark:text-slate-300 hover:border-slate-500">
                         Apri su Maps
                       </a>
                     </div>
 
-                    {kmStatus[riga.id] && <p className="text-xs text-blue-600">{kmStatus[riga.id]}</p>}
+                    {kmStatus[riga.id] && <p className="text-xs text-blue-600 dark:text-blue-400">{kmStatus[riga.id]}</p>}
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-xs text-slate-500 mb-1 block">Km percorso</label>
+                        <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Km percorso</label>
                         <input type="number" value={riga.km} onChange={e => aggiornaRiga(riga.id, { km: Number(e.target.value) })}
-                          className="w-full border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
+                          className="w-full border border-slate-200 dark:border-slate-700 rounded-[10px] px-3 py-2 text-sm" />
                       </div>
                       <div>
-                        <label className="text-xs text-slate-500 mb-1 block">Pedaggio</label>
+                        <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Pedaggio</label>
                         <input type="number" value={riga.pedaggio} onChange={e => aggiornaRiga(riga.id, { pedaggio: Number(e.target.value) })}
-                          className="w-full border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
+                          className="w-full border border-slate-200 dark:border-slate-700 rounded-[10px] px-3 py-2 text-sm" />
                       </div>
                     </div>
 
                     <div className="flex flex-wrap gap-4">
-                      <label className="flex items-center gap-2 text-sm text-slate-700">
+                      <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
                         <input type="checkbox" checked={riga.bagagli} onChange={e => aggiornaRiga(riga.id, { bagagli: e.target.checked })} />
                         Con bagagli
                       </label>
-                      <label className="flex items-center gap-2 text-sm text-slate-700">
+                      <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
                         <input type="checkbox" checked={riga.pernottoFuori} onChange={e => aggiornaRiga(riga.id, { pernottoFuori: e.target.checked })} />
                         Autista dorme fuori
                       </label>
@@ -1854,57 +1918,57 @@ function App({ session }) {
                 )}
 
                 {calc.rientroDaTour && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-900">
+                  <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-xs text-blue-900 dark:text-blue-100">
                     Giorno di rientro da un tour: autista a <strong>&euro;220</strong>, perche ha dormito fuori la notte precedente.
                   </div>
                 )}
 
                 {riga.fdRoma > 0 && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
-                    <p className="text-xs text-amber-900">Giri a Roma dopo un tour o transfer: aggiunta la tariffa FD. Modificala secondo le ore.</p>
+                  <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-3 space-y-2">
+                    <p className="text-xs text-amber-900 dark:text-amber-200">Giri a Roma dopo un tour o transfer: aggiunta la tariffa FD. Modificala secondo le ore.</p>
                     <div className="flex items-center gap-2 flex-wrap">
                       {[550,580,620].map(v => (
                         <button key={v} onClick={() => aggiornaRiga(riga.id, { fdRoma: v })}
-                          className={'px-2.5 py-1 rounded-lg border text-xs ' + (Number(riga.fdRoma)===v ? 'border-amber-600 bg-amber-600 text-white' : 'border-amber-300 bg-white text-amber-900')}>
+                          className={'px-2.5 py-1 rounded-lg border text-xs ' + (Number(riga.fdRoma)===v ? 'border-amber-600 bg-amber-600 text-white' : 'border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-800 text-amber-900 dark:text-amber-200')}>
                           &euro; {v}
                         </button>
                       ))}
                       <input type="number" value={riga.fdRoma} onChange={e => aggiornaRiga(riga.id, { fdRoma: Number(e.target.value) })}
-                        className="w-24 border border-amber-300 rounded-lg px-2 py-1 text-xs text-right bg-white" />
+                        className="w-24 border border-amber-300 dark:border-amber-700 rounded-lg px-2 py-1 text-xs text-right bg-white dark:bg-slate-800" />
                       <button onClick={() => aggiornaRiga(riga.id, { fdRoma: 0 })} className="text-xs text-amber-700 underline">togli</button>
                     </div>
                   </div>
                 )}
 
                 {calc.busNecessari > 1 && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+                  <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-xs text-amber-800 dark:text-amber-300">
                     {riga.pax} passeggeri: capienza massima 63 posti, servono <strong>{calc.busNecessari} pullman</strong>. Prezzo per singolo mezzo.
                   </div>
                 )}
 
-                <div className="bg-slate-50 rounded-lg p-3 space-y-1.5">
+                <div className="bg-slate-50 dark:bg-slate-950 rounded-lg p-3 space-y-1.5">
                   {calc.forfait ? (
-                    <p className="text-xs text-slate-500">Tariffa forfettaria: include gia autista, consumi e utile. Se riesci ad abbinarlo a un altro servizio, abbassa il prezzo qui sotto.</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Tariffa forfettaria: include gia autista, consumi e utile. Se riesci ad abbinarlo a un altro servizio, abbassa il prezzo qui sotto.</p>
                   ) : (
                     <React.Fragment>
-                      <div className="flex justify-between text-xs text-slate-600"><span>Mezzo</span><span>{calc.mezzo}</span></div>
+                      <div className="flex justify-between text-xs text-slate-600 dark:text-slate-400"><span>Mezzo</span><span>{calc.mezzo}</span></div>
                       {calc.costi.map((c,i) => (
-                        <div key={i} className="flex justify-between text-xs text-slate-600">
+                        <div key={i} className="flex justify-between text-xs text-slate-600 dark:text-slate-400">
                           <span>{c.label}</span><span>&euro; {fmt(c.amount)}</span>
                         </div>
                       ))}
-                      <div className="flex justify-between text-xs font-medium text-slate-800 pt-1 border-t border-slate-200">
+                      <div className="flex justify-between text-xs font-medium text-slate-800 dark:text-slate-200 pt-1 border-t border-slate-200 dark:border-slate-700">
                         <span>Costi</span><span>&euro; {fmt(calc.costoTotale)}</span>
                       </div>
                     </React.Fragment>
                   )}
                   <div className="flex items-center justify-between gap-3 pt-2">
-                    <label className="text-xs text-slate-600">Prezzo riga</label>
+                    <label className="text-xs text-slate-600 dark:text-slate-400">Prezzo riga</label>
                     <input type="number" value={prezzo} onChange={e => aggiornaRiga(riga.id, { prezzo: e.target.value })}
                       className="w-32 border border-slate-300 rounded-lg px-2 py-1.5 text-sm text-right font-medium" />
                   </div>
                   {!calc.forfait && (
-                    <div className={'flex justify-between text-xs pt-1 ' + (utile < 200 ? 'text-red-600 font-medium' : 'text-green-700')}>
+                    <div className={'flex justify-between text-xs pt-1 ' + (utile < 200 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-green-700 dark:text-green-400')}>
                       <span>Utile che ne esce</span>
                       <span>&euro; {fmt(utile)}{utile < 200 ? ' - basso' : ''}</span>
                     </div>
@@ -1914,38 +1978,38 @@ function App({ session }) {
             ))}
 
             <button onClick={aggiungiRiga}
-              className="w-full py-3 rounded-xl border border-dashed border-slate-300 text-sm text-slate-600 hover:border-slate-500">
+              className="w-full py-3 rounded-xl border border-dashed border-slate-300 text-sm text-slate-600 dark:text-slate-400 hover:border-slate-500">
               + Aggiungi giorno / servizio
             </button>
 
             {/* NON INCLUDE */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 space-y-4">
               <div>
-                <label className="text-sm font-medium text-slate-700 block">ZTL, tasse e parcheggi</label>
-                <p className="text-xs text-slate-500 mt-1">Finiscono nel "non include": non entrano mai nel totale. Scrivi le prime lettere della citta per trovarla. Premi Salva per aggiungerne di nuove.</p>
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300 block">ZTL, tasse e parcheggi</label>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Finiscono nel "non include": non entrano mai nel totale. Scrivi le prime lettere della citta per trovarla. Premi Salva per aggiungerne di nuove.</p>
               </div>
 
               {rimborsiSuggeriti.length > 0 && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
-                  <p className="text-xs text-blue-900 font-medium">Dedotto dal programma:</p>
+                <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3 space-y-2">
+                  <p className="text-xs text-blue-900 dark:text-blue-100 font-medium">Dedotto dal programma:</p>
                   <div className="flex flex-wrap gap-2">
                     {rimborsiSuggeriti.map(s => (
                       <button key={s.label} onClick={() => aggiungiExtra(s)}
-                        className="px-2.5 py-1.5 rounded-lg border border-blue-300 bg-white text-xs text-blue-900 hover:border-blue-500">
+                        className="px-2.5 py-1.5 rounded-lg border border-blue-300 dark:border-blue-700 bg-white dark:bg-slate-800 text-xs text-blue-900 dark:text-blue-100 hover:border-blue-500">
                         + {s.label}{s.importo > 0 ? ' \u20AC' + s.importo : ''}
                       </button>
                     ))}
                   </div>
-                  <p className="text-xs text-blue-600">{motivoRimborsi}</p>
+                  <p className="text-xs text-blue-600 dark:text-blue-400">{motivoRimborsi}</p>
                 </div>
               )}
 
               {ztlSuggerite.length > 0 && (
-                <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 space-y-3">
+                <div className="bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 rounded-xl p-4 space-y-3">
                   <div className="flex items-start justify-between gap-3">
-                    <p className="text-sm font-medium text-slate-900">Citta riconosciute nell'email</p>
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Citta riconosciute nell'email</p>
                     <button onClick={() => setZtlSuggerite([])}
-                      className="text-xs text-slate-500 hover:text-indigo-800 shrink-0">ignora</button>
+                      className="text-xs text-slate-500 dark:text-slate-400 hover:text-indigo-800 shrink-0">ignora</button>
                   </div>
                   <div className="space-y-3">
                     {ztlSuggerite.map((gruppo, gi) => (
@@ -1959,30 +2023,30 @@ function App({ session }) {
                         {gruppo.opzioni.map((z, i) => (
                           <button key={z.label + i}
                             onClick={() => { aggiungiExtra(z); setZtlSuggerite(prev => prev.filter(g => g.citta !== gruppo.citta)); }}
-                            className="w-full flex items-center justify-between gap-3 bg-white border border-indigo-200 rounded-lg px-3 py-2 text-left hover:border-indigo-400 group">
+                            className="w-full flex items-center justify-between gap-3 bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-800 rounded-lg px-3 py-2 text-left hover:border-indigo-400 group">
                             <span className="min-w-0">
-                              <span className="block text-sm text-slate-900 truncate">{z.label}</span>
-                              {z.nota && <span className="block text-xs text-slate-400 truncate">{z.nota}</span>}
+                              <span className="block text-sm text-slate-900 dark:text-slate-100 truncate">{z.label}</span>
+                              {z.nota && <span className="block text-xs text-slate-400 dark:text-slate-500 truncate">{z.nota}</span>}
                             </span>
                             <span className="shrink-0 flex items-center gap-2">
                               {z.importo > 0
-                                ? <span className="text-sm font-medium text-slate-900 tabular-nums">&euro; {z.importo}</span>
+                                ? <span className="text-sm font-medium text-slate-900 dark:text-slate-100 tabular-nums">&euro; {z.importo}</span>
                                 : <span className="text-xs text-amber-700">da verificare</span>}
-                              <span className="text-blue-600 group-hover:text-blue-600 text-sm">+</span>
+                              <span className="text-blue-600 dark:text-blue-400 group-hover:text-blue-600 text-sm">+</span>
                             </span>
                           </button>
                         ))}
                       </div>
                     ))}
                   </div>
-                  <p className="text-xs text-slate-600">Controlla giorni e tariffa: l'IA propone in base a quanto scritto nell'email.</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">Controlla giorni e tariffa: l'IA propone in base a quanto scritto nell'email.</p>
                 </div>
               )}
 
               {/* RICERCA VOCI */}
               <div className="relative">
-                <div className="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2.5 bg-white focus-within:border-slate-900 transition-colors">
-                  <span className="text-slate-400 text-sm">&#128269;</span>
+                <div className="flex items-center gap-2 border-2 border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 bg-white dark:bg-slate-800 focus-within:border-slate-900 transition-colors">
+                  <span className="text-slate-400 dark:text-slate-500 text-sm">&#128269;</span>
                   <input
                     value={ricerca}
                     onChange={e => { setRicerca(e.target.value); setRicercaAperta(true); }}
@@ -1992,24 +2056,24 @@ function App({ session }) {
                     className="flex-1 text-sm outline-none bg-transparent" />
                   {ricerca && (
                     <button onMouseDown={e => { e.preventDefault(); setRicerca(''); }}
-                      className="text-slate-400 hover:text-slate-700 text-sm px-1">&times;</button>
+                      className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 text-sm px-1">&times;</button>
                   )}
                 </div>
 
                 {ricercaAperta && risultatiRicerca.length > 0 && (
-                  <div className="absolute z-20 left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-lg max-h-72 overflow-y-auto">
+                  <div className="absolute z-20 left-0 right-0 mt-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg max-h-72 overflow-y-auto">
                     {risultatiRicerca.map((e, i) => (
                       <button key={e.label + i}
                         onMouseDown={ev => { ev.preventDefault(); aggiungiExtra(e); setRicerca(''); }}
-                        className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 border-b border-slate-100 last:border-0 flex items-start justify-between gap-3 group">
+                        className="w-full text-left px-3.5 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 border-b border-slate-100 dark:border-slate-800 last:border-0 flex items-start justify-between gap-3 group">
                         <span className="min-w-0">
-                          <span className="block text-sm text-slate-900 group-hover:text-slate-900 truncate">{e.label}</span>
-                          {e.nota && <span className="block text-xs text-slate-400 truncate">{e.nota}</span>}
+                          <span className="block text-sm text-slate-900 dark:text-slate-100 group-hover:text-slate-900 dark:hover:text-slate-100 truncate">{e.label}</span>
+                          {e.nota && <span className="block text-xs text-slate-400 dark:text-slate-500 truncate">{e.nota}</span>}
                         </span>
                         <span className="shrink-0 text-right">
                           {e.importo > 0
-                            ? <span className="text-sm font-medium text-slate-900 tabular-nums">&euro; {e.importo}{e.oraria ? <span className="text-xs font-normal text-slate-400">/h</span> : null}</span>
-                            : <span className="text-xs text-slate-400">da definire</span>}
+                            ? <span className="text-sm font-medium text-slate-900 dark:text-slate-100 tabular-nums">&euro; {e.importo}{e.oraria ? <span className="text-xs font-normal text-slate-400 dark:text-slate-500">/h</span> : null}</span>
+                            : <span className="text-xs text-slate-400 dark:text-slate-500">da definire</span>}
                         </span>
                       </button>
                     ))}
@@ -2017,9 +2081,9 @@ function App({ session }) {
                 )}
 
                 {ricercaAperta && ricerca.trim() && risultatiRicerca.length === 0 && (
-                  <div className="absolute z-20 left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-lg p-3">
+                  <div className="absolute z-20 left-0 right-0 mt-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg p-3">
                     <button onMouseDown={ev => { ev.preventDefault(); aggiungiExtra({ label: ricerca.trim(), importo: 0, nota: '' }); setRicerca(''); }}
-                      className="w-full text-left text-sm text-slate-700 hover:text-slate-900">
+                      className="w-full text-left text-sm text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100">
                       Nessun risultato. <span className="underline">Aggiungi "{ricerca.trim()}" come voce nuova</span>
                     </button>
                   </div>
@@ -2027,30 +2091,30 @@ function App({ session }) {
               </div>
 
               <button onClick={() => aggiungiExtra({ label:'', importo:0, nota:'' })}
-                className="text-xs text-slate-500 hover:text-slate-900 underline">
+                className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 underline">
                 oppure aggiungi una voce vuota
               </button>
 
               {vociExtra.length > 0 && (
                 <div className="space-y-2">
                   {vociExtra.map(v => (
-                    <div key={v.id} className="border border-slate-200 rounded-xl p-3 bg-slate-50 space-y-2">
+                    <div key={v.id} className="border border-slate-200 dark:border-slate-700 rounded-xl p-3 bg-slate-50 dark:bg-slate-950 space-y-2">
                       <div className="flex items-center gap-2">
                         <input value={v.label}
                           onChange={e => aggiornaExtra(v.id, { label: e.target.value })}
                           onBlur={e => completaExtra(v.id, e.target.value)}
                           placeholder="es. Assisi ZTL"
-                          className="flex-1 min-w-0 bg-transparent text-sm font-medium text-slate-900 outline-none border-b border-transparent focus:border-slate-300 pb-0.5" />
+                          className="flex-1 min-w-0 bg-transparent text-sm font-medium text-slate-900 dark:text-slate-100 outline-none border-b border-transparent focus:border-slate-300 pb-0.5" />
                         {v.oraria && (
-                          <div className="flex items-center gap-1 shrink-0 bg-white border border-blue-200 rounded-lg px-2 py-1">
+                          <div className="flex items-center gap-1 shrink-0 bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-800 rounded-lg px-2 py-1">
                             <input type="number" value={v.ore} min="0" step="0.5"
                               onChange={e => aggiornaOre(v.id, e.target.value)}
-                              className="w-12 text-sm text-right outline-none bg-transparent text-blue-900" />
-                            <span className="text-xs text-blue-600">h</span>
+                              className="w-12 text-sm text-right outline-none bg-transparent text-blue-900 dark:text-blue-100" />
+                            <span className="text-xs text-blue-600 dark:text-blue-400">h</span>
                           </div>
                         )}
-                        <div className="flex items-center gap-1 shrink-0 bg-white border border-slate-200 rounded-lg px-2 py-1">
-                          <span className="text-sm text-slate-400">&euro;</span>
+                        <div className="flex items-center gap-1 shrink-0 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1">
+                          <span className="text-sm text-slate-400 dark:text-slate-500">&euro;</span>
                           <input type="number" value={v.importo}
                             onChange={e => aggiornaExtra(v.id, { importo: e.target.value })}
                             className="w-20 text-sm text-right outline-none bg-transparent font-medium tabular-nums" />
@@ -2058,7 +2122,7 @@ function App({ session }) {
                         <button onClick={() => salvaExtraInArchivio(v.id)}
                           disabled={!v.label.trim() || !Number(v.importo)}
                           title="Salva in archivio per riusarla"
-                          className={'shrink-0 w-7 h-7 rounded-lg border text-xs flex items-center justify-center ' + (v.salvata ? 'border-green-300 text-green-700 bg-green-50' : 'border-slate-200 text-slate-400 hover:border-slate-400 hover:text-slate-700 disabled:opacity-30')}>
+                          className={'shrink-0 w-7 h-7 rounded-lg border text-xs flex items-center justify-center ' + (v.salvata ? 'border-green-300 dark:border-green-700 text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950' : 'border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500 hover:border-slate-400 dark:hover:border-slate-500 hover:text-slate-700 dark:hover:text-slate-300 disabled:opacity-30')}>
                           {v.salvata ? '\u2713' : '\u2b07'}
                         </button>
                         <button onClick={() => rimuoviExtra(v.id)} title="Rimuovi"
@@ -2069,15 +2133,15 @@ function App({ session }) {
                       <div className="flex items-center gap-2">
                         <input value={v.nota} onChange={e => aggiornaExtra(v.id, { nota: e.target.value })}
                           placeholder="nota (facoltativa)"
-                          className="flex-1 bg-transparent text-xs text-slate-500 outline-none border-b border-transparent focus:border-slate-300 pb-0.5" />
+                          className="flex-1 bg-transparent text-xs text-slate-500 dark:text-slate-400 outline-none border-b border-transparent focus:border-slate-300 pb-0.5" />
                         {v.oraria && Number(v.ore) > 0 && (
-                          <span className="text-xs text-blue-600 shrink-0">{v.ore}h &times; &euro;{v.tariffaOraria}/ora</span>
+                          <span className="text-xs text-blue-600 dark:text-blue-400 shrink-0">{v.ore}h &times; &euro;{v.tariffaOraria}/ora</span>
                         )}
                       </div>
                     </div>
                   ))}
                   {vociExtra.some(v => (v.nota || '').includes('DA RICHIEDERE')) && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-800">
+                    <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg p-3 text-xs text-red-800">
                       Attenzione: una delle voci richiede l'autorizzazione preventiva del Comune. Ricordati di richiederla prima del viaggio.
                     </div>
                   )}
@@ -2085,10 +2149,10 @@ function App({ session }) {
               )}
 
               <div>
-                <label className="text-xs text-slate-500 mb-1 block">Altre esclusioni (una per riga)</label>
+                <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Altre esclusioni (una per riga)</label>
                 <textarea value={nonInclude} onChange={e => setNonInclude(e.target.value)} rows={3}
-                  className="w-full border border-slate-200 rounded-[10px] px-3 py-2 text-sm" />
-                <p className="text-xs text-slate-500 mt-1">L'IVA 10% viene aggiunta da sola in fondo.</p>
+                  className="w-full border border-slate-200 dark:border-slate-700 rounded-[10px] px-3 py-2 text-sm" />
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">L'IVA 10% viene aggiunta da sola in fondo.</p>
               </div>
             </div>
           </div>
@@ -2154,12 +2218,12 @@ function App({ session }) {
               </button>
 
               {salvataggioMsg && (
-                <p className="text-xs text-center text-green-700">{salvataggioMsg}</p>
+                <p className="text-xs text-center text-green-700 dark:text-green-400">{salvataggioMsg}</p>
               )}
 
               {idCorrente && (
                 <button onClick={nuovoPreventivo}
-                  className="w-full py-2 text-xs text-slate-500 hover:text-slate-900 underline">
+                  className="w-full py-2 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 underline">
                   Inizia un preventivo nuovo
                 </button>
               )}
@@ -2167,26 +2231,26 @@ function App({ session }) {
               <button onClick={copiaTesto}
                 className={'w-full py-3 rounded-xl border text-sm font-medium ' +
                   (copiato === 'ok' ? 'bg-green-600 border-green-600 text-white'
-                   : copiato === 'errore' ? 'bg-red-50 border-red-300 text-red-700'
-                   : 'bg-white border-slate-300 text-slate-900 hover:border-slate-500')}>
+                   : copiato === 'errore' ? 'bg-red-50 dark:bg-red-950 border-red-300 text-red-700 dark:text-red-400'
+                   : 'bg-white dark:bg-slate-800 border-slate-300 text-slate-900 dark:text-slate-100 hover:border-slate-500')}>
                 {copiato === 'ok' ? 'Copiato' : copiato === 'errore' ? 'Copia non riuscita - selezionalo sotto' : 'Copia testo email'}
               </button>
 
-              <div className="bg-white border border-slate-200 rounded-xl p-4">
+              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-medium text-slate-600">Anteprima email</p>
+                  <p className="text-xs font-medium text-slate-600 dark:text-slate-400">Anteprima email</p>
                   <button onClick={() => {
                       const el = document.getElementById('anteprima-testo');
                       if (!el) return;
                       el.focus(); el.select();
                     }}
-                    className="text-xs text-blue-600 hover:text-blue-800 underline">
+                    className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 underline">
                     Seleziona tutto
                   </button>
                 </div>
                 <textarea id="anteprima-testo" readOnly value={generaTesto()} rows={16}
-                  className="w-full text-xs leading-relaxed text-slate-700 border border-slate-200 rounded-lg p-2 bg-slate-50 resize-y" />
-                <p className="text-xs text-slate-500 mt-2">Se il pulsante non funziona: premi "Seleziona tutto" e poi Ctrl+C.</p>
+                  className="w-full text-xs leading-relaxed text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg p-2 bg-slate-50 dark:bg-slate-950 resize-y" />
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Se il pulsante non funziona: premi "Seleziona tutto" e poi Ctrl+C.</p>
               </div>
             </div>
           </div>
