@@ -901,7 +901,7 @@ function App({ session }) {
   const [ricerca, setRicerca] = useState('');
   const [ricercaAperta, setRicercaAperta] = useState(false);
   const [storico, setStorico] = useState([]);
-  const [vista, setVista] = useState('nuovo');
+  const [vista, setVista] = useState('home');
   const [apertoId, setApertoId] = useState(null);
   const [idCorrente, setIdCorrente] = useState(null);
   const [salvataggioMsg, setSalvataggioMsg] = useState('');
@@ -1942,7 +1942,7 @@ function App({ session }) {
             <div>
               <p className="text-xs font-semibold tracking-widest text-red-700 dark:text-red-400 uppercase">Saracini Bus Srl</p>
               <h1 className="text-3xl font-serif text-slate-900 dark:text-slate-100 mt-1">
-                {vista === 'storico' ? 'Preventivi inviati' : vista === 'analitiche' ? 'Analitiche' : vista === 'scadenzario' ? 'Scadenzario' : vista === 'servizi' ? 'Servizi' : (idCorrente ? 'Modifica preventivo' : 'Calcolo preventivo')}
+                {vista === 'home' ? 'Home' : vista === 'storico' ? 'Preventivi inviati' : vista === 'analitiche' ? 'Analitiche' : vista === 'scadenzario' ? 'Scadenzario' : vista === 'servizi' ? 'Servizi' : (idCorrente ? 'Modifica preventivo' : 'Calcolo preventivo')}
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -2431,6 +2431,10 @@ function App({ session }) {
           })()}
 
           <div className="flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1 w-fit">
+            <button onClick={() => setVista('home')}
+              className={'px-3 py-1.5 rounded-lg text-sm ' + (vista === 'home' ? 'bg-slate-900 text-white' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100')}>
+              Home
+            </button>
             <button onClick={() => setVista('nuovo')}
               className={'px-3 py-1.5 rounded-lg text-sm ' + (vista === 'nuovo' ? 'bg-slate-900 text-white' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100')}>
               Preventivo
@@ -2462,6 +2466,98 @@ function App({ session }) {
             </button>
           </div>
         </header>
+
+        {vista === 'home' && (() => {
+          const oggiChiave = chiaveGiornoLocale(new Date());
+          const tra7 = new Date(); tra7.setDate(tra7.getDate() + 7);
+          const tra7Chiave = chiaveGiornoLocale(tra7);
+          const serviziProssimi = servizi
+            .filter(s => s.data_inizio && s.data_inizio >= oggiChiave && s.data_inizio <= tra7Chiave && s.stato !== 'annullato')
+            .sort((a, b) => (a.data_inizio < b.data_inizio ? -1 : 1));
+          const serviziDaAssegnareCount = servizi.filter(s => s.stato === 'da_assegnare').length;
+          return (
+            <div className="space-y-5 max-w-4xl">
+              <div>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Bentornato/a, {(session.user.email || '').split('@')[0]}</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 capitalize">
+                  {new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                </p>
+              </div>
+
+              <div className="grid sm:grid-cols-3 gap-3">
+                <button onClick={() => setVista('servizi')}
+                  className="text-left bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 hover:border-slate-400 dark:hover:border-slate-500">
+                  <p className="text-2xl font-serif text-slate-900 dark:text-slate-100">{serviziDaAssegnareCount}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Servizi da assegnare</p>
+                </button>
+                <button onClick={() => setVista('scadenzario')}
+                  className="text-left bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 hover:border-slate-400 dark:hover:border-slate-500">
+                  <p className="text-2xl font-serif text-slate-900 dark:text-slate-100">{scadenzeDaFare.length}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Scadenze da fare</p>
+                </button>
+                <div className={'rounded-xl p-4 border ' + (backupOggi ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700' : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/60')}>
+                  <p className={'text-2xl font-serif ' + (backupOggi ? 'text-slate-900 dark:text-slate-100' : 'text-amber-700 dark:text-amber-400')}>{backupOggi ? '✓' : '!'}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{backupOggi ? 'Backup fatto oggi' : 'Backup non ancora fatto oggi'}</p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button onClick={nuovoPreventivo} className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm hover:bg-slate-800">+ Nuovo preventivo</button>
+                <button onClick={() => setVista('storico')} className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-sm text-slate-700 dark:text-slate-300 hover:border-slate-500">Storico</button>
+                <button onClick={() => setVista('servizi')} className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-sm text-slate-700 dark:text-slate-300 hover:border-slate-500">Servizi</button>
+                <button onClick={() => setVista('scadenzario')} className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-sm text-slate-700 dark:text-slate-300 hover:border-slate-500">Scadenzario</button>
+              </div>
+
+              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Servizi nei prossimi 7 giorni</p>
+                {serviziProssimi.length === 0 ? (
+                  <p className="text-xs text-slate-400 dark:text-slate-500">Nessun servizio in programma nei prossimi 7 giorni.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {serviziProssimi.map(s => {
+                      const stS = STATI_SERVIZIO[s.stato] || STATI_SERVIZIO.da_assegnare;
+                      return (
+                        <button key={s.id} onClick={() => { setFiltroStatoServizi('tutti'); setGiornoSelezionato(s.data_inizio); setVista('servizi'); }}
+                          className="w-full flex items-center justify-between gap-3 border border-slate-100 dark:border-slate-800 rounded-lg px-3 py-2 hover:border-slate-300 dark:hover:border-slate-600 text-left">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={'w-2 h-2 rounded-full shrink-0 ' + stS.colore}></span>
+                            <span className="text-sm text-slate-800 dark:text-slate-200 truncate">{s.cliente}</span>
+                          </div>
+                          <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0">
+                            {new Date(s.data_inizio + 'T00:00:00').toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Preventivi recenti</p>
+                {storico.length === 0 ? (
+                  <p className="text-xs text-slate-400 dark:text-slate-500">Ancora nessun preventivo salvato.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {storico.slice(0, 5).map(p => {
+                      const stp = STATI[p.stato] || STATI.inviato;
+                      return (
+                        <button key={p.id} onClick={() => riapriPreventivo(p)}
+                          className="w-full flex items-center justify-between gap-3 border border-slate-100 dark:border-slate-800 rounded-lg px-3 py-2 hover:border-slate-300 dark:hover:border-slate-600 text-left">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={'w-2 h-2 rounded-full shrink-0 ' + stp.colore}></span>
+                            <span className="text-sm text-slate-800 dark:text-slate-200 truncate">{p.cliente}</span>
+                          </div>
+                          <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0">€ {fmt(p.totale)}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {vista === 'storico' && (
           <div className="space-y-3">
