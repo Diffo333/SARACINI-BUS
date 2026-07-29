@@ -2327,6 +2327,109 @@ function App({ session }) {
               </div>
             </div>
           )}
+
+          {servizioEspanso && (() => {
+            const s = servizi.find(x => x.id === servizioEspanso);
+            if (!s) return null;
+            const autistaAssegnato = autisti.find(a => a.id === s.autista_id);
+            return (
+              <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/50 p-4"
+                onClick={() => setServizioEspanso(null)}>
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{s.cliente}</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500">
+                        {s.data_inizio ? new Date(s.data_inizio + 'T00:00:00').toLocaleDateString('it-IT') : 'senza data'}
+                        {s.ora_inizio ? ' · ' + s.ora_inizio.slice(0, 5) : ''}
+                        {s.mezzo ? ' · ' + s.mezzo : ''}
+                      </p>
+                    </div>
+                    <button onClick={() => setServizioEspanso(null)}
+                      className="shrink-0 p-1.5 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </button>
+                  </div>
+
+                  <div className="flex-1 p-6 overflow-y-auto space-y-4">
+                    <div>
+                      <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 block">Descrizione</label>
+                      <textarea value={modificheServizio.descrizione || ''} rows={3}
+                        onChange={e => setModificheServizio(m => ({ ...m, descrizione: e.target.value }))}
+                        className="w-full text-sm leading-relaxed border border-slate-200 dark:border-slate-700 rounded-lg p-2 bg-slate-50 dark:bg-slate-950" />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 block">Note interne</label>
+                      <textarea value={modificheServizio.note || ''} rows={2}
+                        onChange={e => setModificheServizio(m => ({ ...m, note: e.target.value }))}
+                        placeholder="Solo per l'ufficio: non finiscono mai nelle email."
+                        className="w-full text-sm leading-relaxed border border-slate-200 dark:border-slate-700 rounded-lg p-2 bg-slate-50 dark:bg-slate-950" />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                          Notifica cliente{s.notificato_cliente_il ? ' (già inviata)' : ''}
+                        </label>
+                        <button onClick={() => generaBozzaPer(s.id, 'cliente')} disabled={generandoBozza === 'cliente'}
+                          className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 underline disabled:opacity-50">
+                          {generandoBozza === 'cliente' ? 'Scrivo...' : 'Scrivi con IA'}
+                        </button>
+                      </div>
+                      <textarea value={modificheServizio.bozza_notifica_cliente || ''} rows={5}
+                        onChange={e => setModificheServizio(m => ({ ...m, bozza_notifica_cliente: e.target.value }))}
+                        placeholder='Vuoto. Premi "Scrivi con IA" oppure scrivi qui a mano.'
+                        className="w-full text-sm leading-relaxed border border-slate-200 dark:border-slate-700 rounded-lg p-2 bg-slate-50 dark:bg-slate-950" />
+                      <button onClick={() => inviaNotificaPer(s.id, 'cliente')}
+                        disabled={inviandoNotifica === 'cliente' || !(modificheServizio.bozza_notifica_cliente || '').trim()}
+                        className="mt-1.5 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs hover:bg-slate-800 disabled:opacity-50">
+                        {inviandoNotifica === 'cliente' ? 'Invio...' : 'Invia email al cliente'}
+                      </button>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                          Notifica autista{s.notificato_autista_il ? ' (già inviata)' : ''}
+                        </label>
+                        <button onClick={() => generaBozzaPer(s.id, 'autista')} disabled={generandoBozza === 'autista' || !autistaAssegnato}
+                          className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 underline disabled:opacity-50">
+                          {generandoBozza === 'autista' ? 'Scrivo...' : 'Scrivi con IA'}
+                        </button>
+                      </div>
+                      <textarea value={modificheServizio.bozza_notifica_autista || ''} rows={5}
+                        onChange={e => setModificheServizio(m => ({ ...m, bozza_notifica_autista: e.target.value }))}
+                        placeholder={autistaAssegnato ? 'Vuoto. Premi "Scrivi con IA" oppure scrivi qui a mano.' : 'Assegna prima un autista.'}
+                        className="w-full text-sm leading-relaxed border border-slate-200 dark:border-slate-700 rounded-lg p-2 bg-slate-50 dark:bg-slate-950" />
+                      <button onClick={() => inviaNotificaPer(s.id, 'autista')}
+                        disabled={inviandoNotifica === 'autista' || !autistaAssegnato || !(modificheServizio.bozza_notifica_autista || '').trim()}
+                        className="mt-1.5 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs hover:bg-slate-800 disabled:opacity-50">
+                        {inviandoNotifica === 'autista' ? 'Invio...' : 'Invia email all\'autista'}
+                      </button>
+                    </div>
+
+                    {dettaglioMsg && <p className="text-xs text-slate-600 dark:text-slate-400">{dettaglioMsg}</p>}
+                  </div>
+
+                  <div className="flex items-center gap-2 px-6 py-4 border-t border-slate-100 dark:border-slate-800 shrink-0">
+                    <button onClick={() => salvaDettaglioServizio(s.id)} disabled={salvandoServizio}
+                      className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm hover:bg-slate-800 disabled:opacity-50">
+                      {salvandoServizio ? 'Salvo...' : 'Salva modifiche'}
+                    </button>
+                    <button onClick={() => setServizioEspanso(null)}
+                      className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-sm text-slate-700 dark:text-slate-300 hover:border-slate-500">
+                      Chiudi
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           <div className="flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1 w-fit">
             <button onClick={() => setVista('nuovo')}
               className={'px-3 py-1.5 rounded-lg text-sm ' + (vista === 'nuovo' ? 'bg-slate-900 text-white' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100')}>
@@ -2924,7 +3027,6 @@ function App({ session }) {
               {serviziFiltrati.map(s => {
                 const st = STATI_SERVIZIO[s.stato] || STATI_SERVIZIO.da_assegnare;
                 const autistaAssegnato = autisti.find(a => a.id === s.autista_id);
-                const espanso = servizioEspanso === s.id;
                 return (
                   <div key={s.id} className={'bg-white dark:bg-slate-800 border rounded-xl p-4 ' + st.bordo}>
                     <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -2945,7 +3047,7 @@ function App({ session }) {
                         className="shrink-0 text-xs text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400">Elimina</button>
                     </div>
 
-                    {!espanso && s.descrizione && <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 truncate">{s.descrizione}</p>}
+                    {s.descrizione && <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 truncate">{s.descrizione}</p>}
 
                     <div className="flex items-center gap-2 mt-3 flex-wrap">
                       <select value={s.autista_id || ''} onChange={e => assegnaAutista(s.id, e.target.value || null)}
@@ -2959,80 +3061,9 @@ function App({ session }) {
                       </select>
                       <button onClick={() => apriDettaglioServizio(s)}
                         className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-slate-500">
-                        {espanso ? 'Chiudi dettagli ▲' : 'Dettagli ▾'}
-                        {(s.notificato_cliente_il || s.notificato_autista_il) ? ' ✓' : ''}
+                        Dettagli{(s.notificato_cliente_il || s.notificato_autista_il) ? ' ✓' : ''}
                       </button>
                     </div>
-
-                    {espanso && (
-                      <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
-                        <div>
-                          <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 block">Descrizione</label>
-                          <textarea value={modificheServizio.descrizione || ''} rows={3}
-                            onChange={e => setModificheServizio(m => ({ ...m, descrizione: e.target.value }))}
-                            className="w-full text-xs leading-relaxed border border-slate-200 dark:border-slate-700 rounded-lg p-2 bg-slate-50 dark:bg-slate-950" />
-                        </div>
-
-                        <div>
-                          <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 block">Note interne</label>
-                          <textarea value={modificheServizio.note || ''} rows={2}
-                            onChange={e => setModificheServizio(m => ({ ...m, note: e.target.value }))}
-                            placeholder="Solo per l'ufficio: non finiscono mai nelle email."
-                            className="w-full text-xs leading-relaxed border border-slate-200 dark:border-slate-700 rounded-lg p-2 bg-slate-50 dark:bg-slate-950" />
-                        </div>
-
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                              Notifica cliente{s.notificato_cliente_il ? ' (già inviata)' : ''}
-                            </label>
-                            <button onClick={() => generaBozzaPer(s.id, 'cliente')} disabled={generandoBozza === 'cliente'}
-                              className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 underline disabled:opacity-50">
-                              {generandoBozza === 'cliente' ? 'Scrivo...' : 'Scrivi con IA'}
-                            </button>
-                          </div>
-                          <textarea value={modificheServizio.bozza_notifica_cliente || ''} rows={5}
-                            onChange={e => setModificheServizio(m => ({ ...m, bozza_notifica_cliente: e.target.value }))}
-                            placeholder='Vuoto. Premi "Scrivi con IA" oppure scrivi qui a mano.'
-                            className="w-full text-xs leading-relaxed border border-slate-200 dark:border-slate-700 rounded-lg p-2 bg-slate-50 dark:bg-slate-950" />
-                          <button onClick={() => inviaNotificaPer(s.id, 'cliente')}
-                            disabled={inviandoNotifica === 'cliente' || !(modificheServizio.bozza_notifica_cliente || '').trim()}
-                            className="mt-1.5 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs hover:bg-slate-800 disabled:opacity-50">
-                            {inviandoNotifica === 'cliente' ? 'Invio...' : 'Invia email al cliente'}
-                          </button>
-                        </div>
-
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                              Notifica autista{s.notificato_autista_il ? ' (già inviata)' : ''}
-                            </label>
-                            <button onClick={() => generaBozzaPer(s.id, 'autista')} disabled={generandoBozza === 'autista' || !autistaAssegnato}
-                              className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 underline disabled:opacity-50">
-                              {generandoBozza === 'autista' ? 'Scrivo...' : 'Scrivi con IA'}
-                            </button>
-                          </div>
-                          <textarea value={modificheServizio.bozza_notifica_autista || ''} rows={5}
-                            onChange={e => setModificheServizio(m => ({ ...m, bozza_notifica_autista: e.target.value }))}
-                            placeholder={autistaAssegnato ? 'Vuoto. Premi "Scrivi con IA" oppure scrivi qui a mano.' : 'Assegna prima un autista.'}
-                            className="w-full text-xs leading-relaxed border border-slate-200 dark:border-slate-700 rounded-lg p-2 bg-slate-50 dark:bg-slate-950" />
-                          <button onClick={() => inviaNotificaPer(s.id, 'autista')}
-                            disabled={inviandoNotifica === 'autista' || !autistaAssegnato || !(modificheServizio.bozza_notifica_autista || '').trim()}
-                            className="mt-1.5 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs hover:bg-slate-800 disabled:opacity-50">
-                            {inviandoNotifica === 'autista' ? 'Invio...' : 'Invia email all\'autista'}
-                          </button>
-                        </div>
-
-                        {dettaglioMsg && <p className="text-xs text-slate-600 dark:text-slate-400">{dettaglioMsg}</p>}
-                        <div className="flex items-center gap-2 pt-1">
-                          <button onClick={() => salvaDettaglioServizio(s.id)} disabled={salvandoServizio}
-                            className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-300 hover:border-slate-500 disabled:opacity-50">
-                            {salvandoServizio ? 'Salvo...' : 'Salva modifiche'}
-                          </button>
-                          <button onClick={() => apriDettaglioServizio(s)} className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-700">Chiudi</button>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 );
               })}
