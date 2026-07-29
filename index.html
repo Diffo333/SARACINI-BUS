@@ -792,6 +792,8 @@ function App({ session }) {
   const [cercaStorico, setCercaStorico] = useState('');
   const [percorsiNoti, setPercorsiNoti] = useState([]);
   const [copiato, setCopiato] = useState(false);
+  const [testoPersonalizzato, setTestoPersonalizzato] = useState('');
+  const [testoModificato, setTestoModificato] = useState(false);
   const [mostraDettaglio, setMostraDettaglio] = useState(false);
   const [periodoPreset, setPeriodoPreset] = useState('30');
   const [dataInizioCustom, setDataInizioCustom] = useState('');
@@ -1090,7 +1092,7 @@ function App({ session }) {
       righe,
       vociExtra,
       nonInclude,
-      testo: generaTesto(),
+      testo: testoAnteprima,
     };
     const ok = await cloud.salvaPreventivo(record, isNew);
     if (!ok) {
@@ -1132,6 +1134,10 @@ function App({ session }) {
     setIdCorrente(p.id);
     setVista('nuovo');
     setApertoId(null);
+    // Riparte dal testo salvato l'ultima volta (magari gia' modificato a mano),
+    // non da uno rigenerato da zero che potrebbe risultare diverso.
+    setTestoPersonalizzato(p.testo || '');
+    setTestoModificato(!!p.testo);
   }
 
 
@@ -1194,6 +1200,8 @@ function App({ session }) {
     setIdCorrente(null);
     setIntestazioneManuale(false);
     setVista('nuovo');
+    setTestoPersonalizzato('');
+    setTestoModificato(false);
   }
 
   function dataIt(iso) {
@@ -1527,8 +1535,12 @@ function App({ session }) {
     return out.split('E ').join('\u20AC ');
   }
 
+  // Se l'utente ha modificato l'anteprima a mano resta quella; altrimenti resta sempre
+  // aggiornata in automatico man mano che si cambiano le righe del preventivo.
+  const testoAnteprima = testoModificato ? testoPersonalizzato : generaTesto();
+
   function copiaTesto() {
-    const testo = generaTesto();
+    const testo = testoAnteprima;
 
     const fallback = () => {
       try {
@@ -2864,20 +2876,33 @@ function App({ session }) {
               </button>
 
               <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-medium text-slate-600 dark:text-slate-400">Anteprima email</p>
-                  <button onClick={() => {
-                      const el = document.getElementById('anteprima-testo');
-                      if (!el) return;
-                      el.focus(); el.select();
-                    }}
-                    className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 underline">
-                    Seleziona tutto
-                  </button>
+                <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+                  <p className="text-xs font-medium text-slate-600 dark:text-slate-400">Anteprima email (modificabile)</p>
+                  <div className="flex items-center gap-3">
+                    {testoModificato && (
+                      <button onClick={() => { setTestoModificato(false); setTestoPersonalizzato(''); }}
+                        className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 underline">
+                        Rigenera dai dati
+                      </button>
+                    )}
+                    <button onClick={() => {
+                        const el = document.getElementById('anteprima-testo');
+                        if (!el) return;
+                        el.focus(); el.select();
+                      }}
+                      className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 underline">
+                      Seleziona tutto
+                    </button>
+                  </div>
                 </div>
-                <textarea id="anteprima-testo" readOnly value={generaTesto()} rows={16}
+                <textarea id="anteprima-testo" value={testoAnteprima} rows={16}
+                  onChange={e => { setTestoPersonalizzato(e.target.value); setTestoModificato(true); }}
                   className="w-full text-xs leading-relaxed text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg p-2 bg-slate-50 dark:bg-slate-950 resize-y" />
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Se il pulsante non funziona: premi "Seleziona tutto" e poi Ctrl+C.</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                  {testoModificato
+                    ? 'Modificato a mano: non cambia più da solo, nemmeno se aggiorni le righe. Usa "Rigenera dai dati" per tornare al testo automatico.'
+                    : 'Puoi scriverci sopra direttamente. Finché non lo tocchi resta aggiornato in automatico con le righe del preventivo.'}
+                </p>
               </div>
             </div>
           </div>
