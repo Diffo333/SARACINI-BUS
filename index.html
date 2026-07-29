@@ -1098,7 +1098,6 @@ function App({ session }) {
       setTimeout(() => setSalvataggioMsg(''), 4000);
       return;
     }
-    await caricaArchivioCloud();
     if (isNew) {
       nuovoPreventivo();
     } else {
@@ -1106,6 +1105,9 @@ function App({ session }) {
     }
     setSalvataggioMsg(isNew ? 'Preventivo salvato nello storico.' : 'Preventivo aggiornato.');
     setTimeout(() => setSalvataggioMsg(''), 3000);
+    // Ricarica l'archivio (clienti, percorsi, storico...) senza far aspettare il modulo:
+    // il reset qui sopra deve essere immediato, l'aggiornamento dei dati può avvenire dietro le quinte.
+    caricaArchivioCloud();
   }
 
   async function cambiaStato(id, nuovo) {
