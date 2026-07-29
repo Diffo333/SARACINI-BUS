@@ -324,6 +324,30 @@ const STATI = {
   svolto:     { label: 'Svolto',     colore: 'bg-slate-800',  testo: 'text-slate-500 dark:text-slate-400',  bordo: 'border-slate-200 dark:border-slate-700' },
 };
 
+// Finestra oraria mostrata nella tabella x/y del giorno selezionato (6:00-24:00).
+const ORE_TIMETABLE = Array.from({ length: 18 }, (_, i) => i + 6);
+
+function orarioAFrazione(t) {
+  if (!t) return null;
+  const [h, m] = t.split(':').map(Number);
+  return h + (m || 0) / 60;
+}
+
+// Posizione/larghezza (in %) della barra di un servizio sulla finestra ORE_TIMETABLE.
+// Se manca l'ora di fine si mostra una barra di 1 ora di default (non si conosce la durata reale).
+function barraOraria(s) {
+  const inizio = orarioAFrazione(s.ora_inizio);
+  if (inizio === null) return null;
+  const min = ORE_TIMETABLE[0], max = ORE_TIMETABLE[ORE_TIMETABLE.length - 1] + 1;
+  let fine = orarioAFrazione(s.ora_fine);
+  if (fine === null || fine <= inizio) fine = inizio + 1;
+  const inizioClamp = Math.max(min, Math.min(max, inizio));
+  const fineClamp = Math.max(min, Math.min(max, fine));
+  const leftPct = ((inizioClamp - min) / (max - min)) * 100;
+  const widthPct = Math.max(((fineClamp - inizioClamp) / (max - min)) * 100, 2.5);
+  return { leftPct, widthPct };
+}
+
 const STATI_SERVIZIO = {
   da_assegnare: { label: 'Da assegnare', colore: 'bg-amber-400',  testo: 'text-amber-700 dark:text-amber-400',  bordo: 'border-amber-200 dark:border-amber-800' },
   assegnato:    { label: 'Assegnato',    colore: 'bg-blue-500',   testo: 'text-blue-700 dark:text-blue-400',    bordo: 'border-blue-200 dark:border-blue-800' },
@@ -690,12 +714,15 @@ function App({ session }) {
   const [nsEmail, setNsEmail] = useState('');
   const [nsDataInizio, setNsDataInizio] = useState('');
   const [nsDataFine, setNsDataFine] = useState('');
+  const [nsOraInizio, setNsOraInizio] = useState('');
+  const [nsOraFine, setNsOraFine] = useState('');
   const [nsDescrizione, setNsDescrizione] = useState('');
   const [nsMezzo, setNsMezzo] = useState('');
   const [servizioMsg, setServizioMsg] = useState('');
   const [filtroStatoServizi, setFiltroStatoServizi] = useState('attivi');
   const [calendarioMese, setCalendarioMese] = useState(() => { const d = new Date(); return { anno: d.getFullYear(), mese: d.getMonth() }; });
   const [giornoSelezionato, setGiornoSelezionato] = useState(null);
+  const [raggruppaTabellaOraria, setRaggruppaTabellaOraria] = useState('autista');
   // Pannello notifica aperto: { servizioId, destinatario } oppure null
   const [notificaAperta, setNotificaAperta] = useState(null);
   const [notificaBozza, setNotificaBozza] = useState('');
@@ -1108,6 +1135,8 @@ function App({ session }) {
     setNsEmail('');
     setNsDataInizio((prefill && prefill.dataInizio) || '');
     setNsDataFine((prefill && prefill.dataFine) || '');
+    setNsOraInizio((prefill && prefill.oraInizio) || '');
+    setNsOraFine((prefill && prefill.oraFine) || '');
     setNsDescrizione((prefill && prefill.descrizione) || '');
     setNsMezzo((prefill && prefill.mezzo) || '');
     setNuovoServizioAperto(true);
@@ -1123,6 +1152,8 @@ function App({ session }) {
       email_cliente: nsEmail.trim(),
       data_inizio: nsDataInizio || null,
       data_fine: nsDataFine || null,
+      ora_inizio: nsOraInizio || null,
+      ora_fine: nsOraFine || null,
       descrizione: nsDescrizione.trim(),
       mezzo: nsMezzo.trim(),
       stato: 'da_assegnare',
@@ -1139,15 +1170,20 @@ function App({ session }) {
 
   async function creaServizioDaPreventivo(p) {
     if (servizi.some(s => s.preventivo_id === p.id)) return; // gia' creato, evita doppioni
-    const date = (p.righe || []).map(r => r.data).filter(Boolean).sort();
-    const descrizione = (p.righe || [])
+    const righe = p.righe || [];
+    const date = righe.map(r => r.data).filter(Boolean).sort();
+    const descrizione = righe
       .map(r => [r.data, r.descrizione || (r.partenza && r.arrivo ? (r.partenza + ' - ' + r.arrivo) : '')].filter(Boolean).join(': '))
       .filter(Boolean).join('\n');
+    const primaConOra = righe.find(r => r.oraPartenza);
+    const ultimaConOra = [...righe].reverse().find(r => r.oraRientro);
     await cloud.creaServizio({
       preventivo_id: p.id,
       cliente: p.cliente,
       data_inizio: date[0] || null,
       data_fine: date[date.length - 1] || null,
+      ora_inizio: (primaConOra && primaConOra.oraPartenza) || null,
+      ora_fine: (ultimaConOra && ultimaConOra.oraRientro) || null,
       descrizione,
       mezzo: p.intestazioneMezzo || '',
       stato: 'da_assegnare',
@@ -1751,6 +1787,23 @@ function App({ session }) {
     if (lista.some(s => s.stato === 'assegnato')) return 'bg-blue-500';
     return 'bg-slate-400';
   }
+
+  function chiaveRaggruppamento(s, tipo) {
+    if (tipo === 'autista') return s.autista_id ? ((autisti.find(a => a.id === s.autista_id) || {}).nome || 'Autista') : 'Non assegnato';
+    if (tipo === 'mezzo') return s.mezzo && s.mezzo.trim() ? s.mezzo.trim() : 'Mezzo non indicato';
+    return s.cliente && s.cliente.trim() ? s.cliente.trim() : 'Cliente non indicato';
+  }
+
+  // Righe della tabella oraria per il giorno selezionato: una per ogni autista/mezzo/cliente
+  // presente quel giorno, con dentro i suoi servizi (quelli con orario, per posizionarli sulla barra).
+  const serviziGiorno = giornoSelezionato ? (serviziPerGiorno[giornoSelezionato] || []) : [];
+  const serviziGiornoSenzaOra = serviziGiorno.filter(s => !s.ora_inizio);
+  const gruppiTimetable = {};
+  serviziGiorno.filter(s => s.ora_inizio).forEach(s => {
+    const chiave = chiaveRaggruppamento(s, raggruppaTabellaOraria);
+    (gruppiTimetable[chiave] = gruppiTimetable[chiave] || []).push(s);
+  });
+  const righeTimetable = Object.keys(gruppiTimetable).sort().map(label => ({ label, servizi: gruppiTimetable[label] }));
 
   const conteggi = {
     tutti: storico.length,
@@ -2704,6 +2757,16 @@ function App({ session }) {
                       <input type="date" value={nsDataFine} onChange={e => setNsDataFine(e.target.value)}
                         className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm" />
                     </div>
+                    <div>
+                      <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Ora inizio</label>
+                      <input type="time" value={nsOraInizio} onChange={e => setNsOraInizio(e.target.value)}
+                        className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Ora fine</label>
+                      <input type="time" value={nsOraFine} onChange={e => setNsOraFine(e.target.value)}
+                        className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm" />
+                    </div>
                   </div>
                   <div>
                     <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Descrizione</label>
@@ -2716,19 +2779,20 @@ function App({ session }) {
               )}
             </div>
 
-            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-3">
+            <div className="flex flex-wrap gap-4 items-start">
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 w-56 shrink-0">
+              <div className="flex items-center justify-between mb-2">
                 <button onClick={() => cambiaMese(-1)}
-                  className="w-7 h-7 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-slate-400 text-sm">‹</button>
-                <p className="text-sm font-medium text-slate-700 dark:text-slate-300 capitalize">
-                  {new Date(calendarioMese.anno, calendarioMese.mese, 1).toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}
+                  className="w-5 h-5 rounded border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-slate-400 text-xs leading-none">‹</button>
+                <p className="text-xs font-medium text-slate-700 dark:text-slate-300 capitalize">
+                  {new Date(calendarioMese.anno, calendarioMese.mese, 1).toLocaleDateString('it-IT', { month: 'short', year: 'numeric' })}
                 </p>
                 <button onClick={() => cambiaMese(1)}
-                  className="w-7 h-7 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-slate-400 text-sm">›</button>
+                  className="w-5 h-5 rounded border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-slate-400 text-xs leading-none">›</button>
               </div>
-              <div className="grid grid-cols-7 gap-1 text-center">
-                {['Lun','Mar','Mer','Gio','Ven','Sab','Dom'].map(g => (
-                  <p key={g} className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500 pb-1">{g}</p>
+              <div className="grid grid-cols-7 gap-0.5 text-center">
+                {['L','M','M','G','V','S','D'].map((g, i) => (
+                  <p key={i} className="text-[9px] text-slate-400 dark:text-slate-500">{g}</p>
                 ))}
                 {generaGrigliaMese(calendarioMese.anno, calendarioMese.mese).map((d, i) => {
                   if (!d) return <div key={i}></div>;
@@ -2737,29 +2801,87 @@ function App({ session }) {
                   const oggi = chiaveGiornoLocale(new Date()) === chiave;
                   const selezionato = giornoSelezionato === chiave;
                   return (
-                    <button key={i} onClick={() => setGiornoSelezionato(selezionato ? null : chiave)}
-                      className={'aspect-square rounded-lg flex flex-col items-center justify-center gap-0.5 text-xs ' +
+                    <button key={i} onClick={() => setGiornoSelezionato(selezionato ? null : chiave)} title={lista.length ? lista.length + ' servizi' : ''}
+                      className={'aspect-square rounded flex flex-col items-center justify-center text-[10px] leading-none ' +
                         (selezionato ? 'bg-slate-900 text-white' : oggi ? 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-slate-100' : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-300')}>
                       <span>{d.getDate()}</span>
                       {lista.length > 0 && (
-                        <span className="flex items-center gap-0.5">
-                          <span className={'w-1.5 h-1.5 rounded-full ' + (selezionato ? 'bg-white' : coloreGiorno(lista))}></span>
-                          <span className={'text-[9px] ' + (selezionato ? 'text-white/80' : 'text-slate-400 dark:text-slate-500')}>{lista.length}</span>
-                        </span>
+                        <span className={'w-1 h-1 rounded-full mt-0.5 ' + (selezionato ? 'bg-white' : coloreGiorno(lista))}></span>
                       )}
                     </button>
                   );
                 })}
               </div>
               {giornoSelezionato && (
-                <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between flex-wrap gap-2">
-                  <p className="text-xs text-slate-500 dark:text-slate-400 capitalize">
-                    {new Date(giornoSelezionato + 'T00:00:00').toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })}
+                <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1">
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 capitalize leading-tight">
+                    {new Date(giornoSelezionato + 'T00:00:00').toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })}
                     {' · '}{(serviziPerGiorno[giornoSelezionato] || []).length} servizi
                   </p>
-                  <button onClick={() => setGiornoSelezionato(null)} className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 underline">Vedi tutti i giorni</button>
+                  <button onClick={() => setGiornoSelezionato(null)} className="text-[10px] text-blue-600 dark:text-blue-400 hover:text-blue-800 underline">Vedi tutti i giorni</button>
                 </div>
               )}
+            </div>
+
+            {giornoSelezionato && (
+              <div className="flex-1 min-w-[280px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 overflow-x-auto">
+                <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+                  <p className="text-xs font-medium text-slate-600 dark:text-slate-400">Tabella oraria</p>
+                  <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-slate-900 rounded-lg p-0.5">
+                    {[['autista','Autisti'],['mezzo','Mezzi'],['cliente','Clienti']].map(([v, label]) => (
+                      <button key={v} onClick={() => setRaggruppaTabellaOraria(v)}
+                        className={'px-2 py-1 rounded-md text-[11px] ' + (raggruppaTabellaOraria === v ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400')}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {righeTimetable.length === 0 ? (
+                  <p className="text-xs text-slate-400 dark:text-slate-500 py-3">Nessun servizio con orario indicato per questo giorno.</p>
+                ) : (
+                  <div style={{ minWidth: '640px' }}>
+                    <div className="flex text-[10px] text-slate-400 dark:text-slate-500 pl-32 mb-1">
+                      {ORE_TIMETABLE.map(h => (
+                        <div key={h} className="flex-1 text-center">{h}</div>
+                      ))}
+                    </div>
+                    <div className="space-y-1">
+                      {righeTimetable.map(riga => (
+                        <div key={riga.label} className="flex items-center">
+                          <div className="w-32 shrink-0 text-xs text-slate-700 dark:text-slate-300 truncate pr-2">{riga.label}</div>
+                          <div className="relative flex-1 h-7 bg-slate-50 dark:bg-slate-900 rounded overflow-hidden">
+                            <div className="absolute inset-0 flex">
+                              {ORE_TIMETABLE.map(h => (
+                                <div key={h} className="flex-1 border-l border-slate-200/70 dark:border-slate-700/70 first:border-l-0"></div>
+                              ))}
+                            </div>
+                            {riga.servizi.map(s => {
+                              const barra = barraOraria(s);
+                              if (!barra) return null;
+                              const st = STATI_SERVIZIO[s.stato] || STATI_SERVIZIO.da_assegnare;
+                              return (
+                                <div key={s.id} title={s.cliente + (s.ora_inizio ? ' - ' + s.ora_inizio.slice(0, 5) : '')}
+                                  className={'absolute top-0.5 bottom-0.5 rounded text-white text-[10px] px-1 flex items-center truncate ' + st.colore}
+                                  style={{ left: barra.leftPct + '%', width: barra.widthPct + '%' }}>
+                                  {s.cliente}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {serviziGiornoSenzaOra.length > 0 && (
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                    Senza orario indicato: {serviziGiornoSenzaOra.map(s => s.cliente).join(', ')}
+                  </p>
+                )}
+              </div>
+            )}
             </div>
 
             <div className="flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1 w-fit flex-wrap">
