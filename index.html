@@ -723,11 +723,13 @@ function App({ session }) {
   const [calendarioMese, setCalendarioMese] = useState(() => { const d = new Date(); return { anno: d.getFullYear(), mese: d.getMonth() }; });
   const [giornoSelezionato, setGiornoSelezionato] = useState(null);
   const [raggruppaTabellaOraria, setRaggruppaTabellaOraria] = useState('autista');
-  // Pannello notifica aperto: { servizioId, destinatario } oppure null
-  const [notificaAperta, setNotificaAperta] = useState(null);
-  const [notificaBozza, setNotificaBozza] = useState('');
-  const [notificaCaricando, setNotificaCaricando] = useState(false);
-  const [notificaMsg, setNotificaMsg] = useState('');
+  // Dettaglio servizio espanso: id del servizio aperto (o null), con le modifiche in corso
+  const [servizioEspanso, setServizioEspanso] = useState(null);
+  const [modificheServizio, setModificheServizio] = useState({});
+  const [salvandoServizio, setSalvandoServizio] = useState(false);
+  const [generandoBozza, setGenerandoBozza] = useState(null); // 'cliente' | 'autista' | null
+  const [inviandoNotifica, setInviandoNotifica] = useState(null); // 'cliente' | 'autista' | null
+  const [dettaglioMsg, setDettaglioMsg] = useState('');
 
   const [impostazioniAperte, setImpostazioniAperte] = useState(false);
   const [sezioneImpostazioni, setSezioneImpostazioni] = useState('account');
@@ -1210,18 +1212,33 @@ function App({ session }) {
     await caricaArchivioCloud();
   }
 
-  // ---- NOTIFICHE (bozza IA + invio email) ----
-  function apriNotifica(servizioId, destinatario) {
-    const stessoAperto = notificaAperta && notificaAperta.servizioId === servizioId && notificaAperta.destinatario === destinatario;
-    setNotificaAperta(stessoAperto ? null : { servizioId, destinatario });
-    setNotificaBozza('');
-    setNotificaMsg('');
+  // ---- DETTAGLIO SERVIZIO: descrizione modificabile + note interne + bozze notifica cliente/autista ----
+  function apriDettaglioServizio(s) {
+    const stessoAperto = servizioEspanso === s.id;
+    setServizioEspanso(stessoAperto ? null : s.id);
+    if (!stessoAperto) {
+      setModificheServizio({
+        descrizione: s.descrizione || '',
+        note: s.note || '',
+        bozza_notifica_cliente: s.bozza_notifica_cliente || '',
+        bozza_notifica_autista: s.bozza_notifica_autista || '',
+      });
+    }
+    setDettaglioMsg('');
   }
 
-  async function generaBozzaNotifica() {
-    if (!notificaAperta) return;
-    setNotificaCaricando(true);
-    setNotificaMsg('');
+  async function salvaDettaglioServizio(id) {
+    setSalvandoServizio(true);
+    const ok = await cloud.aggiornaServizio(id, modificheServizio);
+    setDettaglioMsg(ok ? 'Salvato.' : 'Errore nel salvataggio.');
+    if (ok) await caricaArchivioCloud();
+    setSalvandoServizio(false);
+    setTimeout(() => setDettaglioMsg(''), 2500);
+  }
+
+  async function generaBozzaPer(servizioId, destinatario) {
+    setGenerandoBozza(destinatario);
+    setDettaglioMsg('');
     try {
       const { data: { session: s } } = await supabase.auth.getSession();
       const response = await fetch(SUPABASE_URL + '/functions/v1/notifiche-servizio', {
@@ -1231,25 +1248,27 @@ function App({ session }) {
           'Authorization': 'Bearer ' + (s ? s.access_token : ''),
           'apikey': SUPABASE_ANON_KEY,
         },
-        body: JSON.stringify({ azione: 'bozza', servizioId: notificaAperta.servizioId, destinatario: notificaAperta.destinatario }),
+        body: JSON.stringify({ azione: 'bozza', servizioId, destinatario }),
       });
       const dati = await response.json();
       if (!response.ok || dati.error) {
-        setNotificaMsg('Errore: ' + (dati.error || 'non riesco a generare la bozza.'));
+        setDettaglioMsg('Errore: ' + (dati.error || 'non riesco a generare la bozza.'));
       } else {
-        setNotificaBozza(dati.testo || '');
+        setModificheServizio(m => ({ ...m, ['bozza_notifica_' + destinatario]: dati.testo || '' }));
       }
     } catch (err) {
-      setNotificaMsg('Errore di connessione.');
+      setDettaglioMsg('Errore di connessione.');
     }
-    setNotificaCaricando(false);
+    setGenerandoBozza(null);
   }
 
-  async function inviaNotifica() {
-    if (!notificaAperta || !notificaBozza.trim()) return;
-    setNotificaCaricando(true);
-    setNotificaMsg('');
+  async function inviaNotificaPer(servizioId, destinatario) {
+    const testo = modificheServizio['bozza_notifica_' + destinatario];
+    if (!testo || !testo.trim()) return;
+    setInviandoNotifica(destinatario);
+    setDettaglioMsg('');
     try {
+      await cloud.aggiornaServizio(servizioId, modificheServizio); // salva la bozza prima di mandarla, cosi' non si perde
       const { data: { session: s } } = await supabase.auth.getSession();
       const response = await fetch(SUPABASE_URL + '/functions/v1/notifiche-servizio', {
         method: 'POST',
@@ -1258,20 +1277,20 @@ function App({ session }) {
           'Authorization': 'Bearer ' + (s ? s.access_token : ''),
           'apikey': SUPABASE_ANON_KEY,
         },
-        body: JSON.stringify({ azione: 'invia', servizioId: notificaAperta.servizioId, destinatario: notificaAperta.destinatario, testo: notificaBozza }),
+        body: JSON.stringify({ azione: 'invia', servizioId, destinatario, testo }),
       });
       const dati = await response.json();
       if (!response.ok || dati.error) {
-        setNotificaMsg('Errore: ' + (dati.error || 'invio non riuscito.'));
+        setDettaglioMsg('Errore: ' + (dati.error || 'invio non riuscito.'));
       } else {
-        setNotificaMsg('Email inviata.');
+        setDettaglioMsg('Email inviata.');
         await caricaArchivioCloud();
-        setTimeout(() => setNotificaAperta(null), 1200);
       }
     } catch (err) {
-      setNotificaMsg('Errore di connessione.');
+      setDettaglioMsg('Errore di connessione.');
     }
-    setNotificaCaricando(false);
+    setInviandoNotifica(null);
+    setTimeout(() => setDettaglioMsg(''), 3000);
   }
 
   useEffect(() => {
@@ -2861,11 +2880,12 @@ function App({ session }) {
                               if (!barra) return null;
                               const st = STATI_SERVIZIO[s.stato] || STATI_SERVIZIO.da_assegnare;
                               return (
-                                <div key={s.id} title={s.cliente + (s.ora_inizio ? ' - ' + s.ora_inizio.slice(0, 5) : '')}
-                                  className={'absolute top-0.5 bottom-0.5 rounded text-white text-[10px] px-1 flex items-center truncate ' + st.colore}
+                                <button key={s.id} title={s.cliente + (s.ora_inizio ? ' - ' + s.ora_inizio.slice(0, 5) : '')}
+                                  onClick={() => { setFiltroStatoServizi('tutti'); apriDettaglioServizio(s); }}
+                                  className={'absolute top-0.5 bottom-0.5 rounded text-white text-[10px] px-1 flex items-center truncate cursor-pointer hover:brightness-110 ' + st.colore}
                                   style={{ left: barra.leftPct + '%', width: barra.widthPct + '%' }}>
                                   {s.cliente}
-                                </div>
+                                </button>
                               );
                             })}
                           </div>
@@ -2904,10 +2924,11 @@ function App({ session }) {
               {serviziFiltrati.map(s => {
                 const st = STATI_SERVIZIO[s.stato] || STATI_SERVIZIO.da_assegnare;
                 const autistaAssegnato = autisti.find(a => a.id === s.autista_id);
+                const espanso = servizioEspanso === s.id;
                 return (
                   <div key={s.id} className={'bg-white dark:bg-slate-800 border rounded-xl p-4 ' + st.bordo}>
                     <div className="flex items-start justify-between gap-3 flex-wrap">
-                      <div className="min-w-0">
+                      <button onClick={() => apriDettaglioServizio(s)} className="min-w-0 text-left flex-1">
                         <div className="flex items-center gap-2">
                           <span className={'w-2 h-2 rounded-full shrink-0 ' + st.colore}></span>
                           <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{s.cliente}</p>
@@ -2916,14 +2937,15 @@ function App({ session }) {
                         <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
                           {s.data_inizio ? new Date(s.data_inizio + 'T00:00:00').toLocaleDateString('it-IT') : 'senza data'}
                           {s.data_fine && s.data_fine !== s.data_inizio ? ' → ' + new Date(s.data_fine + 'T00:00:00').toLocaleDateString('it-IT') : ''}
+                          {s.ora_inizio ? ' · ' + s.ora_inizio.slice(0, 5) : ''}
                           {s.mezzo ? ' · ' + s.mezzo : ''}
                         </p>
-                      </div>
+                      </button>
                       <button onClick={() => eliminaServizioFn(s.id, s.cliente)}
                         className="shrink-0 text-xs text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400">Elimina</button>
                     </div>
 
-                    {s.descrizione && <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 whitespace-pre-line">{s.descrizione}</p>}
+                    {!espanso && s.descrizione && <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 truncate">{s.descrizione}</p>}
 
                     <div className="flex items-center gap-2 mt-3 flex-wrap">
                       <select value={s.autista_id || ''} onChange={e => assegnaAutista(s.id, e.target.value || null)}
@@ -2935,37 +2957,79 @@ function App({ session }) {
                         className="border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs bg-white dark:bg-slate-800">
                         {Object.entries(STATI_SERVIZIO).map(([v, info]) => <option key={v} value={v}>{info.label}</option>)}
                       </select>
-                      <button onClick={() => apriNotifica(s.id, 'cliente')}
+                      <button onClick={() => apriDettaglioServizio(s)}
                         className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-slate-500">
-                        Notifica cliente{s.notificato_cliente_il ? ' ✓' : ''}
-                      </button>
-                      <button onClick={() => apriNotifica(s.id, 'autista')} disabled={!autistaAssegnato}
-                        className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-slate-500 disabled:opacity-40">
-                        Notifica autista{s.notificato_autista_il ? ' ✓' : ''}
+                        {espanso ? 'Chiudi dettagli ▲' : 'Dettagli ▾'}
+                        {(s.notificato_cliente_il || s.notificato_autista_il) ? ' ✓' : ''}
                       </button>
                     </div>
 
-                    {notificaAperta && notificaAperta.servizioId === s.id && (
-                      <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                            Email per {notificaAperta.destinatario === 'cliente' ? 'il cliente' : 'l\'autista'}
-                          </p>
-                          <button onClick={generaBozzaNotifica} disabled={notificaCaricando}
-                            className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 underline disabled:opacity-50">
-                            {notificaCaricando ? 'Scrivo...' : 'Scrivi bozza con IA'}
+                    {espanso && (
+                      <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                        <div>
+                          <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 block">Descrizione</label>
+                          <textarea value={modificheServizio.descrizione || ''} rows={3}
+                            onChange={e => setModificheServizio(m => ({ ...m, descrizione: e.target.value }))}
+                            className="w-full text-xs leading-relaxed border border-slate-200 dark:border-slate-700 rounded-lg p-2 bg-slate-50 dark:bg-slate-950" />
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 block">Note interne</label>
+                          <textarea value={modificheServizio.note || ''} rows={2}
+                            onChange={e => setModificheServizio(m => ({ ...m, note: e.target.value }))}
+                            placeholder="Solo per l'ufficio: non finiscono mai nelle email."
+                            className="w-full text-xs leading-relaxed border border-slate-200 dark:border-slate-700 rounded-lg p-2 bg-slate-50 dark:bg-slate-950" />
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                              Notifica cliente{s.notificato_cliente_il ? ' (già inviata)' : ''}
+                            </label>
+                            <button onClick={() => generaBozzaPer(s.id, 'cliente')} disabled={generandoBozza === 'cliente'}
+                              className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 underline disabled:opacity-50">
+                              {generandoBozza === 'cliente' ? 'Scrivo...' : 'Scrivi con IA'}
+                            </button>
+                          </div>
+                          <textarea value={modificheServizio.bozza_notifica_cliente || ''} rows={5}
+                            onChange={e => setModificheServizio(m => ({ ...m, bozza_notifica_cliente: e.target.value }))}
+                            placeholder='Vuoto. Premi "Scrivi con IA" oppure scrivi qui a mano.'
+                            className="w-full text-xs leading-relaxed border border-slate-200 dark:border-slate-700 rounded-lg p-2 bg-slate-50 dark:bg-slate-950" />
+                          <button onClick={() => inviaNotificaPer(s.id, 'cliente')}
+                            disabled={inviandoNotifica === 'cliente' || !(modificheServizio.bozza_notifica_cliente || '').trim()}
+                            className="mt-1.5 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs hover:bg-slate-800 disabled:opacity-50">
+                            {inviandoNotifica === 'cliente' ? 'Invio...' : 'Invia email al cliente'}
                           </button>
                         </div>
-                        <textarea value={notificaBozza} onChange={e => setNotificaBozza(e.target.value)} rows={7}
-                          placeholder='Premi "Scrivi bozza con IA" oppure scrivi qui a mano.'
-                          className="w-full text-xs leading-relaxed border border-slate-200 dark:border-slate-700 rounded-lg p-2 bg-slate-50 dark:bg-slate-950" />
-                        {notificaMsg && <p className="text-xs text-slate-600 dark:text-slate-400">{notificaMsg}</p>}
-                        <div className="flex items-center gap-2">
-                          <button onClick={inviaNotifica} disabled={notificaCaricando || !notificaBozza.trim()}
-                            className="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs hover:bg-slate-800 disabled:opacity-50">
-                            Invia email
+
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                              Notifica autista{s.notificato_autista_il ? ' (già inviata)' : ''}
+                            </label>
+                            <button onClick={() => generaBozzaPer(s.id, 'autista')} disabled={generandoBozza === 'autista' || !autistaAssegnato}
+                              className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 underline disabled:opacity-50">
+                              {generandoBozza === 'autista' ? 'Scrivo...' : 'Scrivi con IA'}
+                            </button>
+                          </div>
+                          <textarea value={modificheServizio.bozza_notifica_autista || ''} rows={5}
+                            onChange={e => setModificheServizio(m => ({ ...m, bozza_notifica_autista: e.target.value }))}
+                            placeholder={autistaAssegnato ? 'Vuoto. Premi "Scrivi con IA" oppure scrivi qui a mano.' : 'Assegna prima un autista.'}
+                            className="w-full text-xs leading-relaxed border border-slate-200 dark:border-slate-700 rounded-lg p-2 bg-slate-50 dark:bg-slate-950" />
+                          <button onClick={() => inviaNotificaPer(s.id, 'autista')}
+                            disabled={inviandoNotifica === 'autista' || !autistaAssegnato || !(modificheServizio.bozza_notifica_autista || '').trim()}
+                            className="mt-1.5 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs hover:bg-slate-800 disabled:opacity-50">
+                            {inviandoNotifica === 'autista' ? 'Invio...' : 'Invia email all\'autista'}
                           </button>
-                          <button onClick={() => setNotificaAperta(null)} className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-700">Chiudi</button>
+                        </div>
+
+                        {dettaglioMsg && <p className="text-xs text-slate-600 dark:text-slate-400">{dettaglioMsg}</p>}
+                        <div className="flex items-center gap-2 pt-1">
+                          <button onClick={() => salvaDettaglioServizio(s.id)} disabled={salvandoServizio}
+                            className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-xs text-slate-700 dark:text-slate-300 hover:border-slate-500 disabled:opacity-50">
+                            {salvandoServizio ? 'Salvo...' : 'Salva modifiche'}
+                          </button>
+                          <button onClick={() => apriDettaglioServizio(s)} className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-700">Chiudi</button>
                         </div>
                       </div>
                     )}
