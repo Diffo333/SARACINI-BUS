@@ -24,6 +24,7 @@
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>tailwind.config = { darkMode: 'class' };</script>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -1245,6 +1246,115 @@ function App({ session }) {
     setServizioEspanso(null);
   }
 
+  // ---- RIEPILOGO ECONOMICO SU CARTA INTESTATA (PDF), a partire dal preventivo collegato al servizio ----
+  function generaRiepilogoPdf(servizio) {
+    const preventivo = storico.find(p => p.id === servizio.preventivo_id);
+    if (!preventivo) {
+      alert('Questo servizio non è collegato a un preventivo: non ci sono importi da riepilogare.');
+      return;
+    }
+    const righeCalc = (preventivo.righe || []).map((r, i) => {
+      const calc = calcolaRiga(r, i > 0 ? preventivo.righe[i - 1] : null);
+      const prezzo = (r.prezzo !== null && r.prezzo !== undefined && r.prezzo !== '') ? Number(r.prezzo) : calc.prezzoSuggerito;
+      return { r, prezzo };
+    });
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    let y = 20;
+    const checkPagina = () => { if (y > 270) { doc.addPage(); y = 20; } };
+
+    doc.setTextColor(196, 22, 28);
+    doc.setFont(undefined, 'bold');
+    doc.setFontSize(20);
+    doc.text('SARACINI BUS', 20, y);
+    y += 6;
+    doc.setTextColor(100);
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(9);
+    doc.text('Noleggio autobus con conducente', 20, y);
+    y += 4;
+    doc.setDrawColor(196, 22, 28);
+    doc.line(20, y, 190, y);
+    y += 10;
+
+    doc.setTextColor(20);
+    doc.setFontSize(15);
+    doc.setFont(undefined, 'bold');
+    doc.text('Riepilogo economico', 20, y);
+    y += 8;
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(10);
+    doc.text('Cliente: ' + preventivo.cliente, 20, y);
+    y += 5;
+    doc.text('Data documento: ' + new Date().toLocaleDateString('it-IT'), 20, y);
+    y += 5;
+    if (servizio.data_inizio) {
+      doc.text('Servizio: dal ' + new Date(servizio.data_inizio + 'T00:00:00').toLocaleDateString('it-IT') +
+        (servizio.data_fine && servizio.data_fine !== servizio.data_inizio ? ' al ' + new Date(servizio.data_fine + 'T00:00:00').toLocaleDateString('it-IT') : ''), 20, y);
+      y += 5;
+    }
+    y += 5;
+
+    doc.setFont(undefined, 'bold');
+    doc.text('Descrizione', 20, y);
+    doc.text('Importo', 190, y, { align: 'right' });
+    doc.setFont(undefined, 'normal');
+    y += 2;
+    doc.line(20, y, 190, y);
+    y += 6;
+
+    righeCalc.forEach(({ r, prezzo }) => {
+      checkPagina();
+      const label = [r.data, r.descrizione || (r.partenza && r.arrivo ? r.partenza + ' - ' + r.arrivo : '')].filter(Boolean).join(' - ') || 'Servizio';
+      doc.text(label, 20, y, { maxWidth: 130 });
+      doc.text('€ ' + fmt(prezzo), 190, y, { align: 'right' });
+      y += 7;
+    });
+
+    y += 2;
+    checkPagina();
+    doc.line(20, y, 190, y);
+    y += 7;
+    doc.setFont(undefined, 'bold');
+    doc.text('Totale', 20, y);
+    doc.text('€ ' + fmt(preventivo.totale), 190, y, { align: 'right' });
+    y += 6;
+    doc.setFont(undefined, 'normal');
+    doc.text('IVA 10%', 20, y);
+    doc.text('€ ' + fmt(preventivo.totale * 0.10), 190, y, { align: 'right' });
+    y += 6;
+    doc.setFont(undefined, 'bold');
+    doc.text('Totale con IVA', 20, y);
+    doc.text('€ ' + fmt(preventivo.totale * 1.10), 190, y, { align: 'right' });
+    y += 10;
+
+    if ((preventivo.vociExtra && preventivo.vociExtra.length) || (preventivo.nonInclude && preventivo.nonInclude.trim())) {
+      checkPagina();
+      doc.setFont(undefined, 'bold');
+      doc.setFontSize(10);
+      doc.text('Non incluso nel totale', 20, y);
+      y += 6;
+      doc.setFont(undefined, 'normal');
+      (preventivo.vociExtra || []).forEach(v => {
+        checkPagina();
+        doc.text('- ' + v.label + (Number(v.importo) > 0 ? ' (€ ' + fmt(v.importo) + ')' : ''), 20, y, { maxWidth: 165 });
+        y += 6;
+      });
+      if (preventivo.nonInclude && preventivo.nonInclude.trim()) {
+        checkPagina();
+        doc.text(preventivo.nonInclude.trim(), 20, y, { maxWidth: 165 });
+        y += 8;
+      }
+    }
+
+    doc.setFontSize(8);
+    doc.setTextColor(150);
+    doc.text('Documento generato dal gestionale preventivi Saracini Bus.', 20, 285);
+
+    doc.save('riepilogo-' + preventivo.cliente.replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '.pdf');
+  }
+
   async function salvaDettaglioServizio(id) {
     setSalvandoServizio(true);
     const ok = await cloud.aggiornaServizio(id, modificheServizio);
@@ -2046,7 +2156,7 @@ function App({ session }) {
                 <div className="flex-1 overflow-y-auto p-6 space-y-4">
                   {[
                     ['Preventivo', 'Crea un preventivo a righe multiple: calcola km, autista e margine da solo, tu scrivi cliente e percorso.'],
-                    ['Servizi', 'Quando confermi un preventivo diventa un servizio da tracciare: assegna l\'autista, segui lo stato, manda notifiche email al cliente e all\'autista (l\'IA te le scrive, tu le rivedi prima di inviarle).'],
+                    ['Servizi', 'Quando confermi un preventivo diventa un servizio da tracciare: assegna l\'autista, segui lo stato, manda notifiche email al cliente e all\'autista (l\'IA te le scrive, tu le rivedi prima di inviarle), e scarica un riepilogo economico in PDF su carta intestata.'],
                     ['Storico', 'Tutti i preventivi salvati, con il loro stato (inviato, confermato, svolto), ricercabili e riapribili in ogni momento.'],
                     ['Scadenzario', 'Segna le scadenze da non dimenticare: un\'email automatica ogni mattina ti ricorda quelle di oggi o già scadute.'],
                     ['Analitiche', 'Un grafico di quanto valgono i preventivi fatti, per vedere l\'andamento nel tempo.'],
@@ -2529,10 +2639,15 @@ function App({ session }) {
                     {dettaglioMsg && <p className="text-xs text-slate-600 dark:text-slate-400">{dettaglioMsg}</p>}
                   </div>
 
-                  <div className="flex items-center gap-2 px-6 py-4 border-t border-slate-100 dark:border-slate-800 shrink-0">
+                  <div className="flex items-center gap-2 px-6 py-4 border-t border-slate-100 dark:border-slate-800 shrink-0 flex-wrap">
                     <button onClick={() => salvaDettaglioServizio(s.id)} disabled={salvandoServizio}
                       className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm hover:bg-slate-800 disabled:opacity-50">
                       {salvandoServizio ? 'Salvo...' : 'Salva modifiche'}
+                    </button>
+                    <button onClick={() => generaRiepilogoPdf(s)} disabled={!s.preventivo_id}
+                      title={s.preventivo_id ? '' : 'Questo servizio non è collegato a un preventivo'}
+                      className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-sm text-slate-700 dark:text-slate-300 hover:border-slate-500 disabled:opacity-40">
+                      Riepilogo economico (PDF)
                     </button>
                     <button onClick={() => chiudiDettaglioServizio(s)}
                       className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-sm text-slate-700 dark:text-slate-300 hover:border-slate-500">
