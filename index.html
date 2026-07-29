@@ -1099,8 +1099,12 @@ function App({ session }) {
       return;
     }
     await caricaArchivioCloud();
-    setIdCorrente(record.id);
-    setSalvataggioMsg(idCorrente ? 'Preventivo aggiornato.' : 'Preventivo salvato nello storico.');
+    if (isNew) {
+      nuovoPreventivo();
+    } else {
+      setIdCorrente(record.id);
+    }
+    setSalvataggioMsg(isNew ? 'Preventivo salvato nello storico.' : 'Preventivo aggiornato.');
     setTimeout(() => setSalvataggioMsg(''), 3000);
   }
 
