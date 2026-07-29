@@ -89,13 +89,15 @@ function rigaStoricoDaDb(r) {
 
 const cloud = {
   async caricaTutto() {
-    const [c, p, e, s, z, tf] = await Promise.all([
+    const [c, p, e, s, z, tf, au, se] = await Promise.all([
       supabase.from('clienti').select('nome').order('nome'),
       supabase.from('percorsi').select('chiave,partenza,arrivo,km'),
       supabase.from('extra').select('label,importo,nota,oraria'),
       supabase.from('storico').select('*').order('data_creazione', { ascending: false }),
       supabase.from('ztl_italia').select('label,importo,nota,oraria').order('label'),
       supabase.from('tariffe_fisse').select('chiave,importo'),
+      supabase.from('autisti').select('*').order('nome'),
+      supabase.from('servizi').select('*').order('data_inizio', { ascending: true, nullsFirst: false }),
     ]);
     return {
       clienti: (c.data || []).map(r => r.nome),
@@ -104,7 +106,32 @@ const cloud = {
       storico: (s.data || []).map(rigaStoricoDaDb),
       ztl: (z.data || []).map(r => ({ label: r.label, importo: r.importo, nota: r.nota || '', oraria: r.oraria })),
       tariffeFisse: tf.data || [],
+      autisti: au.data || [],
+      servizi: se.data || [],
     };
+  },
+  async salvaAutista(row) {
+    const { error } = await supabase.from('autisti').insert(row);
+    return !error;
+  },
+  async eliminaAutista(id) {
+    const { error } = await supabase.from('autisti').delete().eq('id', id);
+    return !error;
+  },
+  async creaServizio(row) {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error } = await supabase.from('servizi').insert({ ...row, creato_da: user ? user.id : null });
+    return !error;
+  },
+  async aggiornaServizio(id, patch) {
+    const { error } = await supabase.from('servizi')
+      .update({ ...patch, aggiornato_il: new Date().toISOString() })
+      .eq('id', id);
+    return !error;
+  },
+  async eliminaServizio(id) {
+    const { error } = await supabase.from('servizi').delete().eq('id', id);
+    return !error;
   },
   async aggiungiCliente(nome) {
     const { error } = await supabase.from('clienti').upsert({ nome }, { onConflict: 'nome', ignoreDuplicates: true });
@@ -295,6 +322,13 @@ const STATI = {
   inviato:    { label: 'Inviato',    colore: 'bg-amber-400',  testo: 'text-amber-700',  bordo: 'border-amber-200 dark:border-amber-800' },
   confermato: { label: 'Confermato', colore: 'bg-green-500',  testo: 'text-green-700 dark:text-green-400',  bordo: 'border-green-200 dark:border-green-800' },
   svolto:     { label: 'Svolto',     colore: 'bg-slate-800',  testo: 'text-slate-500 dark:text-slate-400',  bordo: 'border-slate-200 dark:border-slate-700' },
+};
+
+const STATI_SERVIZIO = {
+  da_assegnare: { label: 'Da assegnare', colore: 'bg-amber-400',  testo: 'text-amber-700 dark:text-amber-400',  bordo: 'border-amber-200 dark:border-amber-800' },
+  assegnato:    { label: 'Assegnato',    colore: 'bg-blue-500',   testo: 'text-blue-700 dark:text-blue-400',    bordo: 'border-blue-200 dark:border-blue-800' },
+  svolto:       { label: 'Svolto',       colore: 'bg-green-500',  testo: 'text-green-700 dark:text-green-400',  bordo: 'border-green-200 dark:border-green-800' },
+  annullato:    { label: 'Annullato',    colore: 'bg-slate-400',  testo: 'text-slate-500 dark:text-slate-400',  bordo: 'border-slate-200 dark:border-slate-700' },
 };
 
 function round5(n) { return Math.round(n / 5) * 5; }
@@ -612,6 +646,30 @@ function App({ session }) {
   const [scadenzeMsg, setScadenzeMsg] = useState('');
   const [notifichePermesso, setNotifichePermesso] = useState(() => (typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'));
 
+  // ---- SERVIZI (pianificazione/tracciamento, stile Movicron) e ANAGRAFICA AUTISTI ----
+  const [autisti, setAutisti] = useState([]);
+  const [servizi, setServizi] = useState([]);
+  const [nuovoAutistaNome, setNuovoAutistaNome] = useState('');
+  const [nuovoAutistaTelefono, setNuovoAutistaTelefono] = useState('');
+  const [nuovoAutistaEmail, setNuovoAutistaEmail] = useState('');
+  const [autistiMsg, setAutistiMsg] = useState('');
+  const [autistiAperto, setAutistiAperto] = useState(false);
+  const [nuovoServizioAperto, setNuovoServizioAperto] = useState(false);
+  const [nsCliente, setNsCliente] = useState('');
+  const [nsTelefono, setNsTelefono] = useState('');
+  const [nsEmail, setNsEmail] = useState('');
+  const [nsDataInizio, setNsDataInizio] = useState('');
+  const [nsDataFine, setNsDataFine] = useState('');
+  const [nsDescrizione, setNsDescrizione] = useState('');
+  const [nsMezzo, setNsMezzo] = useState('');
+  const [servizioMsg, setServizioMsg] = useState('');
+  const [filtroStatoServizi, setFiltroStatoServizi] = useState('attivi');
+  // Pannello notifica aperto: { servizioId, destinatario } oppure null
+  const [notificaAperta, setNotificaAperta] = useState(null);
+  const [notificaBozza, setNotificaBozza] = useState('');
+  const [notificaCaricando, setNotificaCaricando] = useState(false);
+  const [notificaMsg, setNotificaMsg] = useState('');
+
   const [impostazioniAperte, setImpostazioniAperte] = useState(false);
   const [sezioneImpostazioni, setSezioneImpostazioni] = useState('account');
   const [chiaviApiSbloccate, setChiaviApiSbloccate] = useState(false);
@@ -894,6 +952,8 @@ function App({ session }) {
     });
     setScadenze(await cloud.caricaScadenze());
     setSegnalazioni(await cloud.caricaSegnalazioni());
+    setAutisti(dati.autisti || []);
+    setServizi(dati.servizi || []);
   }
 
   useEffect(() => {
@@ -915,6 +975,8 @@ function App({ session }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'ztl_italia' }, () => { caricaArchivioCloud(); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tariffe_fisse' }, () => { caricaArchivioCloud(); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'segnalazioni' }, () => { caricaArchivioCloud(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'autisti' }, () => { caricaArchivioCloud(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'servizi' }, () => { caricaArchivioCloud(); })
       .subscribe();
     return () => supabase.removeChannel(canale);
   }, []);
@@ -980,6 +1042,168 @@ function App({ session }) {
     if (!confirm('Eliminare la scadenza "' + titolo + '"?')) return;
     await cloud.eliminaScadenza(id);
     await caricaArchivioCloud();
+  }
+
+  // ---- ANAGRAFICA AUTISTI ----
+  async function aggiungiAutista(e) {
+    e.preventDefault();
+    if (!nuovoAutistaNome.trim()) { setAutistiMsg('Indica almeno il nome.'); return; }
+    const ok = await cloud.salvaAutista({
+      nome: nuovoAutistaNome.trim(),
+      telefono: nuovoAutistaTelefono.trim(),
+      email: nuovoAutistaEmail.trim(),
+    });
+    if (ok) {
+      setNuovoAutistaNome(''); setNuovoAutistaTelefono(''); setNuovoAutistaEmail('');
+      setAutistiMsg('Autista aggiunto.');
+      await caricaArchivioCloud();
+    } else {
+      setAutistiMsg('Errore nel salvataggio.');
+    }
+    setTimeout(() => setAutistiMsg(''), 3000);
+  }
+
+  async function eliminaAutistaFn(id, nome) {
+    if (!confirm('Eliminare "' + nome + '" dall\'elenco autisti? I servizi già assegnati a lui/lei restano ma senza autista collegato.')) return;
+    await cloud.eliminaAutista(id);
+    await caricaArchivioCloud();
+  }
+
+  // ---- SERVIZI ----
+  function apriNuovoServizio(prefill) {
+    setNsCliente((prefill && prefill.cliente) || '');
+    setNsTelefono('');
+    setNsEmail('');
+    setNsDataInizio((prefill && prefill.dataInizio) || '');
+    setNsDataFine((prefill && prefill.dataFine) || '');
+    setNsDescrizione((prefill && prefill.descrizione) || '');
+    setNsMezzo((prefill && prefill.mezzo) || '');
+    setNuovoServizioAperto(true);
+  }
+
+  async function creaServizioManuale(e) {
+    if (e) e.preventDefault();
+    if (!nsCliente.trim()) { setServizioMsg('Indica almeno il cliente.'); return; }
+    const ok = await cloud.creaServizio({
+      preventivo_id: null,
+      cliente: nsCliente.trim(),
+      telefono_cliente: nsTelefono.trim(),
+      email_cliente: nsEmail.trim(),
+      data_inizio: nsDataInizio || null,
+      data_fine: nsDataFine || null,
+      descrizione: nsDescrizione.trim(),
+      mezzo: nsMezzo.trim(),
+      stato: 'da_assegnare',
+    });
+    if (ok) {
+      setNuovoServizioAperto(false);
+      setServizioMsg('Servizio creato.');
+      await caricaArchivioCloud();
+    } else {
+      setServizioMsg('Errore nel salvataggio. Hai già creato le tabelle "autisti" e "servizi" su Supabase?');
+    }
+    setTimeout(() => setServizioMsg(''), 4000);
+  }
+
+  async function creaServizioDaPreventivo(p) {
+    if (servizi.some(s => s.preventivo_id === p.id)) return; // gia' creato, evita doppioni
+    const date = (p.righe || []).map(r => r.data).filter(Boolean).sort();
+    const descrizione = (p.righe || [])
+      .map(r => [r.data, r.descrizione || (r.partenza && r.arrivo ? (r.partenza + ' - ' + r.arrivo) : '')].filter(Boolean).join(': '))
+      .filter(Boolean).join('\n');
+    await cloud.creaServizio({
+      preventivo_id: p.id,
+      cliente: p.cliente,
+      data_inizio: date[0] || null,
+      data_fine: date[date.length - 1] || null,
+      descrizione,
+      mezzo: p.intestazioneMezzo || '',
+      stato: 'da_assegnare',
+    });
+    await caricaArchivioCloud();
+  }
+
+  async function assegnaAutista(servizioId, autistaId) {
+    await cloud.aggiornaServizio(servizioId, {
+      autista_id: autistaId || null,
+      stato: autistaId ? 'assegnato' : 'da_assegnare',
+    });
+    await caricaArchivioCloud();
+  }
+
+  async function cambiaStatoServizio(servizioId, stato) {
+    await cloud.aggiornaServizio(servizioId, { stato });
+    await caricaArchivioCloud();
+  }
+
+  async function eliminaServizioFn(id, cliente) {
+    if (!confirm('Eliminare il servizio per "' + cliente + '"?')) return;
+    await cloud.eliminaServizio(id);
+    await caricaArchivioCloud();
+  }
+
+  // ---- NOTIFICHE (bozza IA + invio email) ----
+  function apriNotifica(servizioId, destinatario) {
+    const stessoAperto = notificaAperta && notificaAperta.servizioId === servizioId && notificaAperta.destinatario === destinatario;
+    setNotificaAperta(stessoAperto ? null : { servizioId, destinatario });
+    setNotificaBozza('');
+    setNotificaMsg('');
+  }
+
+  async function generaBozzaNotifica() {
+    if (!notificaAperta) return;
+    setNotificaCaricando(true);
+    setNotificaMsg('');
+    try {
+      const { data: { session: s } } = await supabase.auth.getSession();
+      const response = await fetch(SUPABASE_URL + '/functions/v1/notifiche-servizio', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + (s ? s.access_token : ''),
+          'apikey': SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ azione: 'bozza', servizioId: notificaAperta.servizioId, destinatario: notificaAperta.destinatario }),
+      });
+      const dati = await response.json();
+      if (!response.ok || dati.error) {
+        setNotificaMsg('Errore: ' + (dati.error || 'non riesco a generare la bozza.'));
+      } else {
+        setNotificaBozza(dati.testo || '');
+      }
+    } catch (err) {
+      setNotificaMsg('Errore di connessione.');
+    }
+    setNotificaCaricando(false);
+  }
+
+  async function inviaNotifica() {
+    if (!notificaAperta || !notificaBozza.trim()) return;
+    setNotificaCaricando(true);
+    setNotificaMsg('');
+    try {
+      const { data: { session: s } } = await supabase.auth.getSession();
+      const response = await fetch(SUPABASE_URL + '/functions/v1/notifiche-servizio', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + (s ? s.access_token : ''),
+          'apikey': SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ azione: 'invia', servizioId: notificaAperta.servizioId, destinatario: notificaAperta.destinatario, testo: notificaBozza }),
+      });
+      const dati = await response.json();
+      if (!response.ok || dati.error) {
+        setNotificaMsg('Errore: ' + (dati.error || 'invio non riuscito.'));
+      } else {
+        setNotificaMsg('Email inviata.');
+        await caricaArchivioCloud();
+        setTimeout(() => setNotificaAperta(null), 1200);
+      }
+    } catch (err) {
+      setNotificaMsg('Errore di connessione.');
+    }
+    setNotificaCaricando(false);
   }
 
   useEffect(() => {
@@ -1115,6 +1339,10 @@ function App({ session }) {
   async function cambiaStato(id, nuovo) {
     setStorico(prev => prev.map(s => s.id === id ? { ...s, stato: nuovo } : s));
     await cloud.cambiaStato(id, nuovo);
+    if (nuovo === 'confermato') {
+      const p = storico.find(s => s.id === id);
+      if (p) await creaServizioDaPreventivo(p);
+    }
   }
 
   async function eliminaPreventivo(id) {
@@ -1459,6 +1687,14 @@ function App({ session }) {
       return 0;
     });
 
+  const serviziFiltrati = servizi
+    .filter(s => {
+      if (filtroStatoServizi === 'tutti') return true;
+      if (filtroStatoServizi === 'attivi') return s.stato !== 'svolto' && s.stato !== 'annullato';
+      return s.stato === filtroStatoServizi;
+    })
+    .sort((a, b) => (a.data_inizio || '9999') < (b.data_inizio || '9999') ? -1 : 1);
+
   const conteggi = {
     tutti: storico.length,
     inviato: storico.filter(p => p.stato === 'inviato').length,
@@ -1577,7 +1813,7 @@ function App({ session }) {
             <div>
               <p className="text-xs font-semibold tracking-widest text-red-700 dark:text-red-400 uppercase">Saracini Bus Srl</p>
               <h1 className="text-3xl font-serif text-slate-900 dark:text-slate-100 mt-1">
-                {vista === 'storico' ? 'Preventivi inviati' : vista === 'analitiche' ? 'Analitiche' : vista === 'scadenzario' ? 'Scadenzario' : (idCorrente ? 'Modifica preventivo' : 'Calcolo preventivo')}
+                {vista === 'storico' ? 'Preventivi inviati' : vista === 'analitiche' ? 'Analitiche' : vista === 'scadenzario' ? 'Scadenzario' : vista === 'servizi' ? 'Servizi' : (idCorrente ? 'Modifica preventivo' : 'Calcolo preventivo')}
               </h1>
             </div>
             <div className="flex items-center gap-2">
@@ -1985,6 +2221,13 @@ function App({ session }) {
                 <span className={'text-xs px-1.5 rounded-full ' + (vista === 'scadenzario' ? 'bg-white/20' : 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300')}>{scadenzeDaFare.length}</span>
               )}
             </button>
+            <button onClick={() => setVista('servizi')}
+              className={'px-3 py-1.5 rounded-lg text-sm flex items-center gap-1.5 ' + (vista === 'servizi' ? 'bg-slate-900 text-white' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100')}>
+              Servizi
+              {servizi.filter(s => s.stato === 'da_assegnare').length > 0 && (
+                <span className={'text-xs px-1.5 rounded-full ' + (vista === 'servizi' ? 'bg-white/20' : 'bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300')}>{servizi.filter(s => s.stato === 'da_assegnare').length}</span>
+              )}
+            </button>
           </div>
         </header>
 
@@ -2324,6 +2567,182 @@ function App({ session }) {
                   </div>
                 </details>
               )}
+            </div>
+          </div>
+        )}
+
+        {vista === 'servizi' && (
+          <div className="space-y-4 max-w-3xl">
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+              <button onClick={() => setAutistiAperto(!autistiAperto)}
+                className="w-full flex items-center justify-between text-sm font-medium text-slate-700 dark:text-slate-300">
+                <span>Autisti ({autisti.length})</span>
+                <span className="text-xs text-slate-400">{autistiAperto ? 'Nascondi ▲' : 'Mostra ▼'}</span>
+              </button>
+              {autistiAperto && (
+                <div className="mt-3 space-y-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                  <form onSubmit={aggiungiAutista} className="grid sm:grid-cols-[1fr_1fr_1fr_auto] gap-2">
+                    <input value={nuovoAutistaNome} onChange={e => setNuovoAutistaNome(e.target.value)} placeholder="Nome"
+                      className="border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm" />
+                    <input value={nuovoAutistaTelefono} onChange={e => setNuovoAutistaTelefono(e.target.value)} placeholder="Telefono"
+                      className="border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm" />
+                    <input value={nuovoAutistaEmail} onChange={e => setNuovoAutistaEmail(e.target.value)} placeholder="Email"
+                      className="border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm" />
+                    <button type="submit" className="px-3 py-2 rounded-lg bg-slate-900 text-white text-sm hover:bg-slate-800">Aggiungi</button>
+                  </form>
+                  {autistiMsg && <p className="text-xs text-slate-600 dark:text-slate-400">{autistiMsg}</p>}
+                  <div className="space-y-1.5">
+                    {autisti.map(a => (
+                      <div key={a.id} className="flex items-center justify-between gap-2 border border-slate-100 dark:border-slate-800 rounded-lg px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="text-sm text-slate-800 dark:text-slate-200">{a.nome}</p>
+                          <p className="text-xs text-slate-400 dark:text-slate-500">{[a.telefono, a.email].filter(Boolean).join(' · ') || 'Nessun contatto'}</p>
+                        </div>
+                        <button onClick={() => eliminaAutistaFn(a.id, a.nome)}
+                          className="shrink-0 text-xs text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400">Elimina</button>
+                      </div>
+                    ))}
+                    {autisti.length === 0 && <p className="text-xs text-slate-400 dark:text-slate-500">Nessun autista in elenco.</p>}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+              <button onClick={() => nuovoServizioAperto ? setNuovoServizioAperto(false) : apriNuovoServizio()}
+                className="w-full flex items-center justify-between text-sm font-medium text-slate-700 dark:text-slate-300">
+                <span>Nuovo servizio (senza passare da un preventivo)</span>
+                <span className="text-xs text-slate-400">{nuovoServizioAperto ? 'Nascondi ▲' : 'Mostra ▼'}</span>
+              </button>
+              {nuovoServizioAperto && (
+                <form onSubmit={creaServizioManuale} className="mt-3 space-y-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Cliente</label>
+                      <input value={nsCliente} onChange={e => setNsCliente(e.target.value)}
+                        className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Mezzo</label>
+                      <input value={nsMezzo} onChange={e => setNsMezzo(e.target.value)}
+                        className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Telefono cliente</label>
+                      <input value={nsTelefono} onChange={e => setNsTelefono(e.target.value)}
+                        className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Email cliente</label>
+                      <input value={nsEmail} onChange={e => setNsEmail(e.target.value)}
+                        className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Data inizio</label>
+                      <input type="date" value={nsDataInizio} onChange={e => setNsDataInizio(e.target.value)}
+                        className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Data fine</label>
+                      <input type="date" value={nsDataFine} onChange={e => setNsDataFine(e.target.value)}
+                        className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 dark:text-slate-400 mb-1 block">Descrizione</label>
+                    <textarea value={nsDescrizione} onChange={e => setNsDescrizione(e.target.value)} rows={3}
+                      className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm" />
+                  </div>
+                  {servizioMsg && <p className="text-xs text-slate-600 dark:text-slate-400">{servizioMsg}</p>}
+                  <button type="submit" className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm hover:bg-slate-800">Crea servizio</button>
+                </form>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1 w-fit flex-wrap">
+              {[['attivi','Attivi'],['tutti','Tutti'],['da_assegnare','Da assegnare'],['assegnato','Assegnato'],['svolto','Svolto'],['annullato','Annullato']].map(([v, label]) => (
+                <button key={v} onClick={() => setFiltroStatoServizi(v)}
+                  className={'px-3 py-1.5 rounded-lg text-xs ' + (filtroStatoServizi === v ? 'bg-slate-900 text-white' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100')}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="space-y-3">
+              {serviziFiltrati.length === 0 && (
+                <p className="text-sm text-slate-400 dark:text-slate-500">Nessun servizio in questa vista. I servizi nascono da soli quando confermi un preventivo, oppure creane uno qui sopra.</p>
+              )}
+              {serviziFiltrati.map(s => {
+                const st = STATI_SERVIZIO[s.stato] || STATI_SERVIZIO.da_assegnare;
+                const autistaAssegnato = autisti.find(a => a.id === s.autista_id);
+                return (
+                  <div key={s.id} className={'bg-white dark:bg-slate-800 border rounded-xl p-4 ' + st.bordo}>
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className={'w-2 h-2 rounded-full shrink-0 ' + st.colore}></span>
+                          <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{s.cliente}</p>
+                          <span className={'text-xs ' + st.testo}>{st.label}</span>
+                        </div>
+                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                          {s.data_inizio ? new Date(s.data_inizio + 'T00:00:00').toLocaleDateString('it-IT') : 'senza data'}
+                          {s.data_fine && s.data_fine !== s.data_inizio ? ' → ' + new Date(s.data_fine + 'T00:00:00').toLocaleDateString('it-IT') : ''}
+                          {s.mezzo ? ' · ' + s.mezzo : ''}
+                        </p>
+                      </div>
+                      <button onClick={() => eliminaServizioFn(s.id, s.cliente)}
+                        className="shrink-0 text-xs text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400">Elimina</button>
+                    </div>
+
+                    {s.descrizione && <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 whitespace-pre-line">{s.descrizione}</p>}
+
+                    <div className="flex items-center gap-2 mt-3 flex-wrap">
+                      <select value={s.autista_id || ''} onChange={e => assegnaAutista(s.id, e.target.value || null)}
+                        className="border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs bg-white dark:bg-slate-800">
+                        <option value="">Autista non assegnato</option>
+                        {autisti.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
+                      </select>
+                      <select value={s.stato} onChange={e => cambiaStatoServizio(s.id, e.target.value)}
+                        className="border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs bg-white dark:bg-slate-800">
+                        {Object.entries(STATI_SERVIZIO).map(([v, info]) => <option key={v} value={v}>{info.label}</option>)}
+                      </select>
+                      <button onClick={() => apriNotifica(s.id, 'cliente')}
+                        className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-slate-500">
+                        Notifica cliente{s.notificato_cliente_il ? ' ✓' : ''}
+                      </button>
+                      <button onClick={() => apriNotifica(s.id, 'autista')} disabled={!autistaAssegnato}
+                        className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-slate-500 disabled:opacity-40">
+                        Notifica autista{s.notificato_autista_il ? ' ✓' : ''}
+                      </button>
+                    </div>
+
+                    {notificaAperta && notificaAperta.servizioId === s.id && (
+                      <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                            Email per {notificaAperta.destinatario === 'cliente' ? 'il cliente' : 'l\'autista'}
+                          </p>
+                          <button onClick={generaBozzaNotifica} disabled={notificaCaricando}
+                            className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 underline disabled:opacity-50">
+                            {notificaCaricando ? 'Scrivo...' : 'Scrivi bozza con IA'}
+                          </button>
+                        </div>
+                        <textarea value={notificaBozza} onChange={e => setNotificaBozza(e.target.value)} rows={7}
+                          placeholder='Premi "Scrivi bozza con IA" oppure scrivi qui a mano.'
+                          className="w-full text-xs leading-relaxed border border-slate-200 dark:border-slate-700 rounded-lg p-2 bg-slate-50 dark:bg-slate-950" />
+                        {notificaMsg && <p className="text-xs text-slate-600 dark:text-slate-400">{notificaMsg}</p>}
+                        <div className="flex items-center gap-2">
+                          <button onClick={inviaNotifica} disabled={notificaCaricando || !notificaBozza.trim()}
+                            className="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs hover:bg-slate-800 disabled:opacity-50">
+                            Invia email
+                          </button>
+                          <button onClick={() => setNotificaAperta(null)} className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-700">Chiudi</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
