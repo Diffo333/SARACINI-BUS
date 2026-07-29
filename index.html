@@ -1939,12 +1939,14 @@ function App({ session }) {
       <div className="max-w-6xl mx-auto">
         <header className="mb-6">
           <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
-            <div>
-              <p className="text-xs font-semibold tracking-widest text-red-700 dark:text-red-400 uppercase">Saracini Bus Srl</p>
-              <h1 className="text-3xl font-serif text-slate-900 dark:text-slate-100 mt-1">
-                {vista === 'home' ? 'Home' : vista === 'storico' ? 'Preventivi inviati' : vista === 'analitiche' ? 'Analitiche' : vista === 'scadenzario' ? 'Scadenzario' : vista === 'servizi' ? 'Servizi' : (idCorrente ? 'Modifica preventivo' : 'Calcolo preventivo')}
-              </h1>
-            </div>
+            {vista === 'home' ? <div /> : (
+              <div>
+                <p className="text-xs font-semibold tracking-widest text-red-700 dark:text-red-400 uppercase">Saracini Bus Srl</p>
+                <h1 className="text-3xl font-serif text-slate-900 dark:text-slate-100 mt-1">
+                  {vista === 'storico' ? 'Preventivi inviati' : vista === 'analitiche' ? 'Analitiche' : vista === 'scadenzario' ? 'Scadenzario' : vista === 'servizi' ? 'Servizi' : (idCorrente ? 'Modifica preventivo' : 'Calcolo preventivo')}
+                </h1>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <button onClick={() => setVista('home')} title="Home"
                 className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-400 dark:hover:border-slate-500 hover:text-slate-900 dark:hover:text-slate-100">
@@ -2437,11 +2439,8 @@ function App({ session }) {
             );
           })()}
 
+          {vista !== 'home' && (
           <div className="flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1 w-fit">
-            <button onClick={() => setVista('home')}
-              className={'px-3 py-1.5 rounded-lg text-sm ' + (vista === 'home' ? 'bg-slate-900 text-white' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100')}>
-              Home
-            </button>
             <button onClick={() => setVista('nuovo')}
               className={'px-3 py-1.5 rounded-lg text-sm ' + (vista === 'nuovo' ? 'bg-slate-900 text-white' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100')}>
               Preventivo
@@ -2472,6 +2471,7 @@ function App({ session }) {
               )}
             </button>
           </div>
+          )}
         </header>
 
         {vista === 'home' && (() => {
