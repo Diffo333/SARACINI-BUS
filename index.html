@@ -445,6 +445,36 @@ function chiaveGiornoLocale(d) {
   return y + '-' + m + '-' + giorno;
 }
 
+// Tutti i giorni coperti da un servizio (dal data_inizio al data_fine incluso): un tour di
+// piu' giorni occupa mezzo/autista ogni giorno, non solo il primo, quindi deve comparire
+// su ognuno di quei giorni nel calendario.
+function elencoGiorniServizio(s) {
+  if (!s.data_inizio) return [];
+  const giorni = [];
+  const inizio = new Date(s.data_inizio + 'T00:00:00');
+  const fine = s.data_fine ? new Date(s.data_fine + 'T00:00:00') : inizio;
+  const cursore = new Date(inizio);
+  let contatore = 0;
+  while (cursore <= fine && contatore < 60) {
+    giorni.push(chiaveGiornoLocale(cursore));
+    cursore.setDate(cursore.getDate() + 1);
+    contatore++;
+  }
+  return giorni;
+}
+
+// Griglia del mese per il calendario: null per le celle vuote prima del giorno 1
+// (settimana che inizia di lunedi', come da convenzione italiana).
+function generaGrigliaMese(anno, mese) {
+  const primo = new Date(anno, mese, 1);
+  const giorniMese = new Date(anno, mese + 1, 0).getDate();
+  const offset = (primo.getDay() + 6) % 7;
+  const celle = [];
+  for (let i = 0; i < offset; i++) celle.push(null);
+  for (let d = 1; d <= giorniMese; d++) celle.push(new Date(anno, mese, d));
+  return celle;
+}
+
 function aggregaPerGiorno(storico, inizio, fine) {
   const somme = {};
   storico.forEach(p => {
@@ -664,6 +694,8 @@ function App({ session }) {
   const [nsMezzo, setNsMezzo] = useState('');
   const [servizioMsg, setServizioMsg] = useState('');
   const [filtroStatoServizi, setFiltroStatoServizi] = useState('attivi');
+  const [calendarioMese, setCalendarioMese] = useState(() => { const d = new Date(); return { anno: d.getFullYear(), mese: d.getMonth() }; });
+  const [giornoSelezionato, setGiornoSelezionato] = useState(null);
   // Pannello notifica aperto: { servizioId, destinatario } oppure null
   const [notificaAperta, setNotificaAperta] = useState(null);
   const [notificaBozza, setNotificaBozza] = useState('');
@@ -1687,13 +1719,38 @@ function App({ session }) {
       return 0;
     });
 
-  const serviziFiltrati = servizi
+  // Mappa giorno -> servizi di quel giorno (un tour multi-giorno compare su ogni giorno che copre)
+  const serviziPerGiorno = {};
+  servizi.forEach(s => {
+    elencoGiorniServizio(s).forEach(g => {
+      (serviziPerGiorno[g] = serviziPerGiorno[g] || []).push(s);
+    });
+  });
+
+  const serviziBase = giornoSelezionato ? (serviziPerGiorno[giornoSelezionato] || []) : servizi;
+  const serviziFiltrati = serviziBase
     .filter(s => {
       if (filtroStatoServizi === 'tutti') return true;
       if (filtroStatoServizi === 'attivi') return s.stato !== 'svolto' && s.stato !== 'annullato';
       return s.stato === filtroStatoServizi;
     })
     .sort((a, b) => (a.data_inizio || '9999') < (b.data_inizio || '9999') ? -1 : 1);
+
+  function cambiaMese(delta) {
+    setCalendarioMese(c => {
+      let mese = c.mese + delta, anno = c.anno;
+      if (mese < 0) { mese = 11; anno--; }
+      if (mese > 11) { mese = 0; anno++; }
+      return { anno, mese };
+    });
+  }
+
+  function coloreGiorno(lista) {
+    if (!lista || !lista.length) return null;
+    if (lista.some(s => s.stato === 'da_assegnare')) return 'bg-amber-400';
+    if (lista.some(s => s.stato === 'assegnato')) return 'bg-blue-500';
+    return 'bg-slate-400';
+  }
 
   const conteggi = {
     tutti: storico.length,
@@ -2659,6 +2716,52 @@ function App({ session }) {
               )}
             </div>
 
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <button onClick={() => cambiaMese(-1)}
+                  className="w-7 h-7 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-slate-400 text-sm">‹</button>
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-300 capitalize">
+                  {new Date(calendarioMese.anno, calendarioMese.mese, 1).toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}
+                </p>
+                <button onClick={() => cambiaMese(1)}
+                  className="w-7 h-7 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-slate-400 text-sm">›</button>
+              </div>
+              <div className="grid grid-cols-7 gap-1 text-center">
+                {['Lun','Mar','Mer','Gio','Ven','Sab','Dom'].map(g => (
+                  <p key={g} className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500 pb-1">{g}</p>
+                ))}
+                {generaGrigliaMese(calendarioMese.anno, calendarioMese.mese).map((d, i) => {
+                  if (!d) return <div key={i}></div>;
+                  const chiave = chiaveGiornoLocale(d);
+                  const lista = serviziPerGiorno[chiave] || [];
+                  const oggi = chiaveGiornoLocale(new Date()) === chiave;
+                  const selezionato = giornoSelezionato === chiave;
+                  return (
+                    <button key={i} onClick={() => setGiornoSelezionato(selezionato ? null : chiave)}
+                      className={'aspect-square rounded-lg flex flex-col items-center justify-center gap-0.5 text-xs ' +
+                        (selezionato ? 'bg-slate-900 text-white' : oggi ? 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-slate-100' : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-300')}>
+                      <span>{d.getDate()}</span>
+                      {lista.length > 0 && (
+                        <span className="flex items-center gap-0.5">
+                          <span className={'w-1.5 h-1.5 rounded-full ' + (selezionato ? 'bg-white' : coloreGiorno(lista))}></span>
+                          <span className={'text-[9px] ' + (selezionato ? 'text-white/80' : 'text-slate-400 dark:text-slate-500')}>{lista.length}</span>
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              {giornoSelezionato && (
+                <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between flex-wrap gap-2">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 capitalize">
+                    {new Date(giornoSelezionato + 'T00:00:00').toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })}
+                    {' · '}{(serviziPerGiorno[giornoSelezionato] || []).length} servizi
+                  </p>
+                  <button onClick={() => setGiornoSelezionato(null)} className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 underline">Vedi tutti i giorni</button>
+                </div>
+              )}
+            </div>
+
             <div className="flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1 w-fit flex-wrap">
               {[['attivi','Attivi'],['tutti','Tutti'],['da_assegnare','Da assegnare'],['assegnato','Assegnato'],['svolto','Svolto'],['annullato','Annullato']].map(([v, label]) => (
                 <button key={v} onClick={() => setFiltroStatoServizi(v)}
@@ -2670,7 +2773,11 @@ function App({ session }) {
 
             <div className="space-y-3">
               {serviziFiltrati.length === 0 && (
-                <p className="text-sm text-slate-400 dark:text-slate-500">Nessun servizio in questa vista. I servizi nascono da soli quando confermi un preventivo, oppure creane uno qui sopra.</p>
+                <p className="text-sm text-slate-400 dark:text-slate-500">
+                  {giornoSelezionato
+                    ? 'Nessun servizio per questo giorno (con il filtro attuale).'
+                    : 'Nessun servizio in questa vista. I servizi nascono da soli quando confermi un preventivo, oppure creane uno qui sopra.'}
+                </p>
               )}
               {serviziFiltrati.map(s => {
                 const st = STATI_SERVIZIO[s.stato] || STATI_SERVIZIO.da_assegnare;
